@@ -100,6 +100,9 @@ python mcrender_gui.py --sync-vanilla
 - 对附加包**只读**：解包在临时目录，输出只写入你指定的输出目录
 - 仅支持**基岩版**配方格式，不支持 Java 版
 - 本工具与 Mojang / Microsoft 无关联；Minecraft 是 Mojang Studios 的商标
+- 联网下载要求你拥有可以连接GitHub的环境（因为下的是官方实例包）
+- 现有的版本可能会有部分瑕疵，如文字被错误裁剪。但若成图出现紫黑块请优先检查受否写错id。如确认确实没问题，欢迎联系我并提供出错图片和模组文件
+- 该软件使用Deepseek Harness编写，部分描述我也不知道是否正确，欢迎指正
 
 ## License
 
