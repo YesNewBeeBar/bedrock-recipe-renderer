@@ -1,0 +1,23 @@
+# 本机配置与缓存：不要提交
+config.json
+vanilla_cache/
+wiki_cache/
+*.spec
+*.spec.bak
+
+# 构建产物
+build/
+dist/
+__pycache__/
+*.pyc
+*.pyo
+*.exe
+
+# 发布目录（exe 走 GitHub Releases，不进仓库）
+合成表生成器v1.0.0/
+发布/
+
+# 临时文件
+*.bak
+*.tmp
+*~
