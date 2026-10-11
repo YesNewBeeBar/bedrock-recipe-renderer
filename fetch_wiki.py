@@ -28,7 +28,8 @@ from mcrender import jsonc                # noqa: E402
 from mcrender import wiki                 # noqa: E402
 
 VANILLA = os.path.join(HERE, "android-kivy", "vanilla")
-OUT = os.path.join(HERE, "android-kivy", "wiki_cache")
+ROOT = os.path.join(HERE, "android-kivy")   # 核心会在其下自建 wiki_cache
+OUT = ROOT
 
 COLOURS = ("white", "orange", "magenta", "light_blue", "yellow", "lime", "pink",
            "gray", "light_gray", "cyan", "purple", "blue", "brown", "green",

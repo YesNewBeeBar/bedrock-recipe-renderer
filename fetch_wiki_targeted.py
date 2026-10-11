@@ -15,7 +15,8 @@ sys.path.insert(0, os.path.join(HERE, "android-kivy"))
 from mcrender import jsonc          # noqa: E402
 from mcrender import wiki           # noqa: E402
 
-OUT = os.path.join(HERE, "android-kivy", "wiki_cache")
+ROOT = os.path.join(HERE, "android-kivy")   # 核心会在其下自建 wiki_cache
+OUT = ROOT
 PACKS = [
     r"C:\Users\NewBee_Bar\Downloads\更多投掷球-v0.0.2.mcaddon.zip",
     r"C:\Users\NewBee_Bar\Downloads\3.1.0-alpha.1(26.30+).mcaddon",
