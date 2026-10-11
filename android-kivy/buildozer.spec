@@ -5,9 +5,9 @@ package.domain = com.yesnewbeebar
 source.dir = .
 source.include_exts = py,png,jpg,json,ttf,ttc,otf,tga,none
 source.exclude_dirs = bin, .buildozer, __pycache__, tests
-version = 1.0.9
+version = 1.1.0
 # Android 的 versionCode：必须递增，否则安装时提示“已安装相同版本”
-android.numeric_version = 11
+android.numeric_version = 12
 
 # Pillow 由 python-for-android 的官方 recipe 构建（这是选 Kivy 路线的唯一原因）
 # 这一行是**已验证能编过 APK** 的组合，改动前请先在 CI 上试
