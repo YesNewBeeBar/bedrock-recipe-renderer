@@ -110,25 +110,12 @@ def _import_tree(uri, dest):
     return count
 
 
-def _recipes_under(root):
-    out = []
-    for base, dirs, files in os.walk(root):
-        for f in list(files):
-            full = os.path.join(base, f)
-            if is_archive(full):
-                sub = full + "_x"
-                try:
-                    with zipfile.ZipFile(full) as inner:
-                        inner.extractall(sub)
-                    dirs.append(os.path.relpath(sub, base))
-                except Exception:
-                    pass
-        if os.path.basename(base) == "recipes":
-            out += [os.path.join(base, f) for f in files if f.lower().endswith(".json")]
-    return out
+def unpack_archive(archive, work_root, depth=3):
+    """把压缩包（含双层压缩）解到私有目录，返回解包根目录。
 
-
-def unpack_recipes(archive, work_root):
+    只负责解包，**不判断哪些是配方** —— 那是核心 mcrender.recipes.collect() 的活。
+    实测同一份 .mcaddon：自己按目录名找只认出 14 条，核心 collect() 能认出 310 条。
+    """
     target = os.path.join(work_root, "unpack", os.path.basename(archive))
     shutil.rmtree(target, ignore_errors=True)
     os.makedirs(target, exist_ok=True)
@@ -136,12 +123,34 @@ def unpack_recipes(archive, work_root):
         with zipfile.ZipFile(archive) as zf:
             zf.extractall(target)
     except Exception:
-        return []
-    found = _recipes_under(target)
-    if found:
-        return sorted(set(found))
-    return sorted({os.path.join(b, f) for b, _d, fs in os.walk(target) for f in fs
-                   if f.lower().endswith(".json") and "recipe" in (b + f).lower()})
+        return target
+
+    for _ in range(depth):                     # 逐层解开内层压缩包
+        found_any = False
+        for base, _dirs, files in os.walk(target):
+            for f in files:
+                if not is_archive(f):
+                    continue
+                full = os.path.join(base, f)
+                sub = full + "_x"
+                if os.path.isdir(sub):
+                    continue
+                try:
+                    with zipfile.ZipFile(full) as z:
+                        z.extractall(sub)
+                    found_any = True
+                except Exception:
+                    continue
+        if not found_any:
+            break
+    return target
+
+
+def unpack_recipes(archive, work_root):
+    """兼容旧调用：返回解出来的全部 json（配方识别交给核心 collect()）。"""
+    root = unpack_archive(archive, work_root)
+    return [os.path.join(b, f) for b, _d, fs in os.walk(root) for f in fs
+            if f.lower().endswith(".json")]
 
 
 def pick_files(on_done, multiple=True):

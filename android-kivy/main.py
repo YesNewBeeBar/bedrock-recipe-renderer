@@ -178,7 +178,10 @@ class MainView(BoxLayout):
             if os.path.isdir(path):
                 out += collect(path)
             elif path.lower().endswith(ARCHIVE_EXT):
-                out += picking.unpack_recipes(path, p_paths.work_dir())
+                root = picking.unpack_archive(path, p_paths.work_dir())
+                found = collect(root)
+                self._msg(f"解包 {os.path.basename(path)} → 识别 {len(found)} 条配方")
+                out += found
             elif path.lower().endswith(".json"):
                 out.append(path)
         if not out and st["bp"] and os.path.isdir(st["bp"]):
@@ -206,6 +209,8 @@ class MainView(BoxLayout):
                 self._msg("没找到配方：选一个 .mcaddon/.zip，或选 BP 文件夹")
                 return
             self._msg(f"开始出图，共 {len(recipes)} 条 → {out_root}")
+            for p in recipes[:3]:
+                self._msg("  · " + os.path.basename(p))
 
             assets = Assets(
                 bp_dir=st["bp"] or None, rp_dir=st["rp"] or None,
