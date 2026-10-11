@@ -232,23 +232,18 @@ def fetch_icon(ident: str, root: str, language: str = "en",
         # the inventory sprite first: "Invicon X.png" is the 16x16/32x32 item icon,
         # while the article's own image is often an illustration of several items
         for title in titles:
-            for candidate in (f"Invicon {title}.png", f"{title} JE1 BE1.png",
-                              f"{title}.png"):
+            # 维基上不少图标带版本后缀：基岩版是 "Invicon X BE.png" / "X BE1.png"，
+            # 只找无后缀的名字会漏掉盾牌、重锤这类（issue #4 / #3）。
+            for candidate in (f"Invicon {title}.png", f"Invicon {title} BE.png",
+                              f"Invicon {title} BE1.png", f"Invicon {title} JE1 BE1.png"):
                 url = _file_url(wiki, candidate)
                 if url and _download(url, dest):
                     im = _usable(dest)
                     if im is not None:
                         return im
-        for title in titles:
-            url = _page_image(wiki, title)
-            if url and _download(url, dest):
-                im = _usable(dest)
-                if im is not None:
-                    return im
-        url = _search_image(wiki, titles[0])
-        if url and _download(url, dest):
-            im = _usable(dest)
-            if im is not None:
-                return im
+        # 注意：**不要**再回退到"文章主图/搜索结果"——
+        # 那是插图（信标的文章图是"光束"），拿来做物品图标会画得不对。
+        # 找不到就说没有，交给方块模型/原版贴图去画。
+        # （已移除文章主图 / 搜索结果回退：那是插图，不是物品图标）
     _note_failure(ident, root, permanent=_LAST["answered"])
     return None
