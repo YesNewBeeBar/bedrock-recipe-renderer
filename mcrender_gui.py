@@ -20,6 +20,7 @@ import sys
 import tempfile
 import threading
 import traceback
+from PIL import Image
 import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -140,10 +141,9 @@ def save_config(cfg: dict) -> None:
 
 # --------------------------------------------------------------------- packs
 def safe_folder_name(name: str) -> str:
-    """把附加包文件名变成安全的文件夹名（去掉 Windows 不允许的字符）。"""
-    bad = r'<>:"/\|?*'
-    out = "".join(("_" if c in bad or ord(c) < 32 else c) for c in str(name)).strip(" .")
-    return out or "合成表"
+    """安全文件夹名 —— 逻辑在核心 mcrender/output.py，三端共用。"""
+    from mcrender import output
+    return output.safe_folder_name(name)
 
 
 def is_archive(path: str) -> bool:
@@ -413,11 +413,43 @@ class Generator:
             os.makedirs(os.path.dirname(target), exist_ok=True)
             img.save(target)
             done.append(target)
+            gif = self._tag_gif(rec, renderer, target)
+            if gif:
+                done.append(gif)
             self.log(f"✓ {rec.identifier or os.path.basename(path)}  →  {target}")
         for warning in sorted(set(renderer.warnings)):
             self.log("   ! " + warning)
         renderer.warnings.clear()
         return done
+
+    # -- 同标签物品轮播 GIF（issue #1）
+    @staticmethod
+    def _tags_in(rec) -> list:
+        """配方里用到的标签（形如 tag:minecraft:planks）。"""
+        found = []
+
+        def walk(node):
+            if isinstance(node, str):
+                if node.startswith("tag:") and node not in found:
+                    found.append(node)
+            elif isinstance(node, (list, tuple)):
+                for item in node:
+                    walk(item)
+            elif isinstance(node, dict):
+                for item in node.values():
+                    walk(item)
+
+        for attr in ("grid", "result", "rows", "special", "pattern", "key"):
+            if hasattr(rec, attr):
+                walk(getattr(rec, attr))
+        return found
+
+    def _tag_gif(self, rec, renderer, target_png: str) -> str:
+        """同标签轮播 GIF —— 逻辑在核心 mcrender/taggif.py，两端共用。"""
+        if not self.cfg.get("tag_gif", True):
+            return ""
+        from mcrender import taggif
+        return taggif.render_gif(renderer, rec, target_png, log=self.log)
 
     def _relative(self, path: str) -> str:
         path = os.path.abspath(path)

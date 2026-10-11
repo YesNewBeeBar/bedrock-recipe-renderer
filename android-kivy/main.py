@@ -303,8 +303,12 @@ class MainView(BoxLayout):
             if not st["out"]:
                 self._msg("请先点「选择出图目录」")
                 return
-            out_root = os.path.join(st["out"], "合成表")
-            os.makedirs(out_root, exist_ok=True)
+            # 输出结构：<选的目录>/合成表/<附加包名>/… —— 与桌面端同一套核心规则
+            from mcrender import output as output_mod
+            source = (st["files"][0] if st["files"] else st["bp"]) or ""
+            pack = output_mod.pack_folder_name(source) if source else ""
+            out_root = output_mod.output_dir_for(st["out"], pack)
+            self._diag(f"输出目录: {out_root}（附加包名 {pack or '未识别'}）")
 
             import time as _time
             t0 = _time.time()
