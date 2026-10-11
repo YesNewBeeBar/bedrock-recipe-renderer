@@ -14,6 +14,9 @@ jobs:
   apk:
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    env:
+      # libffi 的 autoreconf 靠它找到 libtool.m4，否则报 LT_SYS_SYMBOL_USCORE
+      ACLOCAL_PATH: /usr/share/aclocal:/usr/local/share/aclocal
     steps:
       - uses: actions/checkout@v4
 
@@ -41,9 +44,10 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            git zip unzip openjdk-17-jdk autoconf libtool pkg-config \
-            zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev \
-            libssl-dev automake build-essential ccache
+            git zip unzip openjdk-17-jdk autoconf automake libtool libtool-bin \
+            libltdl-dev m4 gettext pkg-config zlib1g-dev libncurses5-dev \
+            libncursesw5-dev cmake libffi-dev libssl-dev build-essential ccache
+          ls -l /usr/share/aclocal/libtool.m4
 
       - name: Install buildozer
         run: |
