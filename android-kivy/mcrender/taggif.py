@@ -71,6 +71,8 @@ def render_gif(renderer, recipe, target_png: str, max_frames: int = 8,
                 assets.tag_items[t] = members[i % len(members)]
             img, _lay = renderer.render(recipe)
             frames.append(img.convert("RGBA"))
+            if hasattr(renderer, "warnings"):
+                renderer.warnings.clear()   # 轮播每帧都会重报"标签画成了X"，别刷屏
     except Exception as exc:
         say(f"   ! GIF 生成失败：{exc}")
         frames = []
