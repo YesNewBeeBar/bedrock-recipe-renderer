@@ -170,10 +170,15 @@ class MainView(BoxLayout):
         self.bar.value = 0
         threading.Thread(target=self._render, daemon=True).start()
 
-    def _collect(self) -> list[str]:
-        from mcrender.recipes import collect
+    def _collect(self):
+        """返回**已解析的 Recipe 对象**列表（核心 collect() 的返回类型就是它）。
+
+        注意：collect() 不是"找文件"，它内部已经 parse 并过滤过了；
+        千万不要再把这些对象喂给 parse(path) —— 那样一律变成 kind=unknown。
+        """
+        from mcrender.recipes import collect, parse
         st = self.state
-        out: list[str] = []
+        out = []
         for path in st["files"]:
             if os.path.isdir(path):
                 out += collect(path)
@@ -183,10 +188,18 @@ class MainView(BoxLayout):
                 self._msg(f"解包 {os.path.basename(path)} → 识别 {len(found)} 条配方")
                 out += found
             elif path.lower().endswith(".json"):
-                out.append(path)
+                rec = parse(path)
+                if rec is not None:
+                    out.append(rec)
         if not out and st["bp"] and os.path.isdir(st["bp"]):
             out = collect(st["bp"])
-        return sorted(dict.fromkeys(out))
+        seen, uniq = set(), []
+        for r in out:
+            p = getattr(r, "path", "")
+            if p and p not in seen:
+                seen.add(p)
+                uniq.append(r)
+        return uniq
 
     def _render(self) -> None:
         try:
@@ -209,8 +222,8 @@ class MainView(BoxLayout):
                 self._msg("没找到配方：选一个 .mcaddon/.zip，或选 BP 文件夹")
                 return
             self._msg(f"开始出图，共 {len(recipes)} 条 → {out_root}")
-            for p in recipes[:3]:
-                self._msg("  · " + os.path.basename(p))
+            for r in recipes[:3]:
+                self._msg("  · " + os.path.basename(getattr(r, "path", "?")))
 
             assets = Assets(
                 bp_dir=st["bp"] or None, rp_dir=st["rp"] or None,
@@ -221,31 +234,41 @@ class MainView(BoxLayout):
             renderer = Renderer(assets, scale=int(st.get("scale", 4)),
                                 layout=st.get("layout", "modern"), background=None)
 
-            done = failed = 0
-            for i, path in enumerate(recipes, 1):
+            done = failed = skipped = 0
+            for i, rec in enumerate(recipes, 1):
                 try:
-                    rec = parse(path)
-                    if rec is None or getattr(rec, "kind", "unknown") == "unknown":
+                    if getattr(rec, "kind", "unknown") == "unknown":
+                        skipped += 1
                         continue
                     img, _lay = renderer.render(rec)
-                    dest = os.path.join(out_root, self._relname(path))
+                    rel = self._relname(rec.path)
+                    if not rel.lower().endswith(".png"):
+                        rel = os.path.splitext(rel)[0] + ".png"   # 别存成 .json
+                    dest = os.path.join(out_root, rel)
                     os.makedirs(os.path.dirname(dest), exist_ok=True)
                     img.save(dest)
                     done += 1
                 except Exception as exc:
                     failed += 1
                     if failed <= 5:
-                        self._msg(f"! {os.path.basename(path)}: {exc}")
+                        self._msg(f"! {os.path.basename(getattr(rec, 'path', '?'))}: {exc}")
                 Clock.schedule_once(
                     lambda *_a, v=i / max(1, len(recipes)): setattr(self.bar, "value", v))
             for w in renderer.warnings[:5]:
                 self._msg("! " + str(w))
-            self._msg(f"完成 {done}/{len(recipes)}，失败 {failed}")
+            self._msg(f"完成 {done}/{len(recipes)}，失败 {failed}，跳过 {skipped}")
             self._msg("输出：" + out_root)
         except Exception as exc:
             crashlog.report("渲染失败", exc)
 
     def _relname(self, path: str) -> str:
+        # 解包目录形如 /…/unpack/<压缩包名>/HiddenYears(BP).zip_x/recipes/a.json
+        # 从内层压缩包名开始保留相对路径，避免不同目录同名配方互相覆盖
+        marker = os.sep + "unpack" + os.sep
+        if marker in path:
+            tail = path.split(marker, 1)[1].split(os.sep)[1:]
+            if tail:
+                return os.path.join(*tail)
         st = self.state
         for base in (st["bp"], st["out"], *(f for f in st["files"] if os.path.isdir(f))):
             if base and path.startswith(base):
