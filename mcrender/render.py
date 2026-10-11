@@ -117,6 +117,8 @@ class Layout:
     bottles: list = field(default_factory=list)  # (x, y) slots with the empty-bottle art
     # slot art drawn *under* the items: (vanilla path, x, y, w, h) GUI units
     slot_art: list = field(default_factory=list)
+    # a panel image cropped straight out of the game (path relative to assets/panels)
+    art: str | None = None
     notes: list = field(default_factory=list)
 
 
@@ -135,6 +137,30 @@ class Renderer:
         self.font = GlyphSheets(assets.vanilla_dir, source=vanilla_source)
         self.sprites = panel.Sprites(vanilla_source or assets.vanilla_dir)
         self.warnings: list[str] = []
+        self._panel_art: dict = {}
+
+    def panel_art(self, lay: Layout) -> Image.Image | None:
+        """Load a cropped game panel (``assets/panels/<art>.png``), resized to the
+        layout's size in output pixels.  The crops are taken at GUI scale 4, so at
+        scale 4 they are pasted 1:1."""
+        if not lay.art:
+            return None
+        if lay.art not in self._panel_art:
+            base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                "assets", "panels", lay.art + ".png")
+            if not os.path.isfile(base) and self.assets.tool_root:
+                base = os.path.join(self.assets.tool_root, "assets", "panels", lay.art + ".png")
+            try:
+                self._panel_art[lay.art] = Image.open(base).convert("RGBA")
+            except Exception:
+                self._panel_art[lay.art] = None
+                self.warnings.append(f"panel art {lay.art} missing")
+        img = self._panel_art[lay.art]
+        if img is None:
+            return None
+        target = (max(1, int(round(lay.width * self.scale))),
+                  max(1, int(round(lay.height * self.scale))))
+        return img if img.size == target else img.resize(target, Image.NEAREST)
 
     # ------------------------------------------------------------- layout
     @staticmethod
@@ -227,41 +253,35 @@ class Renderer:
         return None
 
     def _layout_stonecutter(self, rec: Recipe, title: str) -> Layout:
-        """Bedrock stonecutter screen: one 18x18 input slot, the large arrow and the
-        26x26 result slot, with the row centred in a 176-wide panel (as in the game)."""
-        cy = 30 + panel.SLOT_SIZE // 2                 # 39
-        lay = Layout(width=176, height=80, title=title, title_align="center",
-                     title_span=(0, 176))
-        lay.slots.append((self._first_input(rec), 41, 30, panel.SLOT_SIZE))
-        lay.arrows.append((72, cy - 7.5))
+        """Bedrock stonecutter screen.
+
+        Geometry measured off the game's own screen (which is exactly GUI scale 4):
+        input slot interior at (42, 35.5) 16 units, arrow, result interior (106, 31.5)
+        24 units.  The frame and title come from the cropped panel image.
+        """
+        lay = Layout(width=172, height=72.75, title=title, art="stonecutter")
+        lay.slots.append((self._first_input(rec), 42, 35.5, 16))
         if rec.result:
-            lay.result = (rec.result[0], rec.result[1], 103, cy - 13, panel.RESULT_SIZE)
+            lay.result = (rec.result[0], rec.result[1], 106, 31.5, 24)
+        lay.arrows.append((72, 33))                    # kept for classic fallback
         return lay
 
     def _layout_smithing(self, rec: Recipe, title: str) -> Layout:
-        """Bedrock smithing table screen, measured off the game's own UI definition
-        (``ui/smithing_table_2_screen.json``) and the reference screenshot:
+        """Bedrock smithing table screen.
 
-        a 30x30 station icon at the top-left, the centred title beside it, the three
-        18x18 slots in a row with the game's template / material slot overlays, then
-        the arrow and the 26x26 result slot.
+        The frame, the 30x30 station icon, the title and the template / material slot
+        overlays all come from the cropped panel image (the game's own screen, which is
+        exactly GUI scale 4).  The three slot interiors sit at x = 6 / 24 / 42, y = 45.25
+        and the (18-unit) result slot at x = 96.
         """
-        lay = Layout(width=176, height=104, title=title, title_align="left",
-                     title_pos=(38, 13))
-        for ident, x in ((rec.special.get("template"), 10), (rec.special.get("base"), 28),
-                         (rec.special.get("addition"), 46)):
+        lay = Layout(width=172, height=74.75, title=title, art="smithing")
+        for ident, x in ((rec.special.get("template"), 6), (rec.special.get("base"), 24),
+                         (rec.special.get("addition"), 42)):
             if isinstance(ident, tuple):
                 ident = ident[0]
-            lay.slots.append((ident, x, 56, panel.SLOT_SIZE))
-        # the overlays are strips; the game reads one 16x16 frame via a uv animation
-        lay.slot_art += [
-            ("textures/ui/templates_slot_overlay.png", 11, 57, 16, 16, (0, 0, 16, 16)),
-            ("textures/ui/smithing_material_slot_overlay.png", 47, 57, 16, 16, (0, 0, 16, 16)),
-        ]
-        lay.arrows.append((71, 58))
+            lay.slots.append((ident, x, 45.25, 16))
         if rec.result:
-            lay.result = (rec.result[0], rec.result[1], 97, 52, panel.RESULT_SIZE)
-        lay.sprites.append(("textures/ui/smithing_icon.png", 4, 4, 30, 30))
+            lay.result = (rec.result[0], rec.result[1], 96, 45.25, 16)
         return lay
 
     def _layout_row(self, rec: Recipe, title: str, inputs) -> Layout:
@@ -336,16 +356,28 @@ class Renderer:
         s = self.scale
 
         # 1) the GUI itself is 1x-per-unit, then scaled by the GUI scale (NEAREST)
-        base = Image.new("RGBA", (lay.width, lay.height), (0, 0, 0, 0))
-        panel.draw_panel(base, lay.width, lay.height)
-        for x, y, w, h in lay.pipes:                    # behind the slots
-            panel.draw_pipe(base, x, y, w, h)
-        for _ident, x, y, size in lay.slots:
-            panel.draw_slot(base, x, y, size)
-        if lay.result:
-            _ident, _count, x, y, size = lay.result
-            panel.draw_slot(base, x, y, size)
-        img = base if s == 1 else base.resize((lay.width * s, lay.height * s), Image.NEAREST)
+        art = self.panel_art(lay)
+        if art is not None:
+            # a panel cropped straight out of the game (assets/panels/<art>.png): it
+            # already carries the frame, the slots, the arrow and the title, so only the
+            # items get drawn on top - and the canvas is exactly the crop's pixel size,
+            # which keeps the crop 1:1 at GUI scale 4 with no resampling
+            base = Image.new("RGBA", art.size, (0, 0, 0, 0))
+            base.alpha_composite(art)
+            img = base
+        else:
+            base = Image.new("RGBA", (int(round(lay.width)), int(round(lay.height))),
+                             (0, 0, 0, 0))
+            panel.draw_panel(base, lay.width, lay.height)
+            for x, y, w, h in lay.pipes:                # behind the slots
+                panel.draw_pipe(base, x, y, w, h)
+            for _ident, x, y, size in lay.slots:
+                panel.draw_slot(base, x, y, size)
+            if lay.result:
+                _ident, _count, x, y, size = lay.result
+                panel.draw_slot(base, x, y, size)
+            img = base if s == 1 else base.resize(
+                (int(round(lay.width * s)), int(round(lay.height * s))), Image.NEAREST)
 
         # 1b) slot decorations (empty fuel / empty bottle art from the vanilla UI)
         for x, y in lay.fuel:
@@ -381,16 +413,18 @@ class Renderer:
             if self.show_counts and count > 1:
                 self._draw_count(img, x, y, size, count)
 
-        # 3) vanilla sprites (arrow, furnace flame) are 1x-per-unit art
+        # 3) vanilla sprites (arrow, furnace flame) are 1x-per-unit art.
+        #    A cropped panel already contains its own arrow / flame / title, so those
+        #    are only drawn for the programmatic panels.
         arrow = self.sprites.arrow
-        for x, y in lay.arrows:
+        for x, y in (lay.arrows if art is None else ()):
             if arrow is not None:
                 panel.blit(img, arrow.resize((arrow.width * s, arrow.height * s), Image.NEAREST),
                            int(round(x * s)), int(round(y * s)))
             else:
                 self.warnings.append("vanilla textures/ui/arrow_large.png missing; arrow skipped")
         flame = self.sprites.flame
-        for x, y in lay.flames:
+        for x, y in (lay.flames if art is None else ()):
             if flame is not None:
                 panel.blit(img, flame.resize((flame.width * s, flame.height * s), Image.NEAREST),
                            int(round(x * s)), int(round(y * s)))
@@ -412,7 +446,7 @@ class Renderer:
 
         # 4) title: the 16x16 glyph cell is laid into an 8-unit box at output
         #    resolution - exactly how Bedrock renders CJK
-        if lay.title:
+        if lay.title and art is None:
             box = self.title_unit * s
             width = len(lay.title) * box
             if lay.title_align == "center":
