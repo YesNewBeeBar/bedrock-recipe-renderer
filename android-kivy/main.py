@@ -173,7 +173,8 @@ class MainView(BoxLayout):
     def _collect(self):
         """返回**已解析的 Recipe 对象**列表（核心 collect() 的返回类型就是它）。
 
-        注意：collect() 不是"找文件"，它内部已经 parse 并过滤过了；
+        逻辑与桌面版一致：解包 → 找带 manifest.json 的包根（BP 出配方、RP 出素材）
+        → 对 BP 根递归收集。注意 collect() 内部已经 parse 并过滤，返回值是对象；
         千万不要再把这些对象喂给 parse(path) —— 那样一律变成 kind=unknown。
         """
         from mcrender.recipes import collect, parse
@@ -183,10 +184,9 @@ class MainView(BoxLayout):
             if os.path.isdir(path):
                 out += collect(path)
             elif path.lower().endswith(ARCHIVE_EXT):
-                root = picking.unpack_archive(path, p_paths.work_dir())
-                found = collect(root)
-                self._msg(f"解包 {os.path.basename(path)} → 识别 {len(found)} 条配方")
-                out += found
+                bps, rps = self._unpack_packs(path)
+                for bp in bps:
+                    out += collect(bp)
             elif path.lower().endswith(".json"):
                 rec = parse(path)
                 if rec is not None:
@@ -200,6 +200,35 @@ class MainView(BoxLayout):
                 seen.add(p)
                 uniq.append(r)
         return uniq
+
+    def _unpack_packs(self, archive: str):
+        """解包并把里面的 BP / RP 根目录找出来（与桌面版同样的判定方式）。"""
+        size_mb = os.path.getsize(archive) / 1048576
+        root = picking.unpack_archive(archive, p_paths.work_dir())
+        total = sum(len(fs) for _b, _d, fs in os.walk(root))
+        bps, rps = [], []
+        for base, _dirs, files in os.walk(root):
+            if "manifest.json" not in files:
+                continue
+            has_bp = any(os.path.isdir(os.path.join(base, d)) for d in
+                         ("recipes", "entities", "loot_tables", "scripts",
+                          "behavior_packs"))
+            has_rp = os.path.isdir(os.path.join(base, "textures"))
+            if has_bp and not has_rp:
+                bps.append(base)
+            elif has_rp and not has_bp:
+                rps.append(base)
+            elif has_bp and has_rp:
+                bps.append(base)
+                rps.append(base)
+        if not bps:                                  # 没有 manifest 就退回整个解包目录
+            bps = [root]
+        self._msg(f"解包 {os.path.basename(archive)}（{size_mb:.1f} MB）"
+                  f"→ 文件 {total} 个，BP {len(bps)} 个，RP {len(rps)} 个")
+        if rps and not self.state.get("rp"):
+            self.state["rp"] = rps[0]
+            self._msg("已自动使用包内资源包 RP：" + os.path.basename(rps[0]))
+        return bps, rps
 
     def _render(self) -> None:
         try:
