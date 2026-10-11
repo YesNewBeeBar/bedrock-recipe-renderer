@@ -44,7 +44,7 @@ from kivy.uix.textinput import TextInput
 from platform_layer import fonts as p_fonts
 from platform_layer import net as p_net
 from platform_layer import paths as p_paths
-from platform_layer import androidfs, picking, storage
+from platform_layer import androidfs, crashlog, picking, storage
 
 
 class MainView(BoxLayout):
@@ -128,128 +128,59 @@ class MainView(BoxLayout):
     # 所以这三个回调不再包后台线程；只有渲染才放线程里。
     @mainthread
     def on_pick_files(self, *_a) -> None:
-        picked = picking.pick_files(multiple=True)
-        if picked:
-            self.state["files"] = picked
-            self.write(f"已选 {len(picked)} 个文件")
-            for p in picked[:3]:
-                self.write("  " + os.path.basename(p))
-        else:
-            self.write("未选择文件（若点了没反应，说明选择器被系统拦下）")
+        self.write('请选择 配方 json / .mcaddon / .zip …')
+        picking.pick_files(self._on_files_picked, multiple=True)
 
-    @mainthread
-    def _pick_dir(self, key: str) -> None:
-        """BP/RP 必须是文件夹：用 SAF 目录选择器，再把内容导入 App 私有目录。"""
-        title = "选择行为包 BP 文件夹" if key == "bp" else "选择资源包 RP 文件夹"
-        self.write(f"请选择 {key.upper()} 文件夹…")
-        uri = androidfs.pick_tree(title)
-        if not uri:
-            self.write(f"未选择 {key.upper()} 文件夹")
+    def _on_files_picked(self, picked) -> None:
+        if not picked:
+            self.write('未选择文件')
             return
-        dest = os.path.join(p_paths.data_dir(), "packs", key)
-        self.write("正在导入文件夹内容…")
-        n = androidfs.import_tree(uri, dest)
-        if n:
-            self.state[key] = dest
-            self.write(f"{key.upper()} 已导入 {n} 个文件 → {dest}")
-        else:
-            self.write(f"{key.upper()} 导入失败（目录为空或权限被拒）")
+        self.state['files'] = picked
+        self.write('已选 %d 个文件' % len(picked))
+        for f in picked[:3]:
+            self.write('  ' + os.path.basename(f))
 
-    @mainthread
-    def on_pick_out(self, *_a) -> None:
-        """选择出图目录（写回用户选的文件夹，而不是只能待在私有目录）。"""
-        self.write("请选择出图目录…")
-        uri = androidfs.pick_tree("选择出图目录")
-        if uri:
-            self.state["out_uri"] = uri
-            self.write("出图目录已设置（出图后点导出会写入该目录）")
-        else:
-            self.write("未选择出图目录")
+    def _pick_dir(self, key: str) -> None:
+        title = '选择行为包 BP 文件夹' if key == 'bp' else '选择资源包 RP 文件夹'
+        self.write('请选择 %s 文件夹…' % key.upper())
 
-    @mainthread
-    def on_pick_vanilla(self, *_a) -> None:
-        picked = picking.pick_files(multiple=False)
-        if picked:
-            self.state["vanilla"] = picked[0]
-            self.state["offline"] = True
-            self.write("原版包: " + picked[0] + "（已自动切到本地模式）")
-        else:
-            self.write("未选择原版包")
-
-    # --------------------------------------------------------------- 出图
-    def on_start(self, *_a) -> None:
-        self.bar.value = 0
-        threading.Thread(target=self._render, daemon=True).start()
-
-    def _render(self) -> None:
-        try:
-            p_fonts.install()
-            p_net.prepare_tls()
-            from mcrender.assets import Assets
-            from mcrender.recipes import collect, parse
-            from mcrender.render import Renderer
-
-            st = self.state
-            out_root = os.path.join(st["out"], "合成表")
-            os.makedirs(out_root, exist_ok=True)
-
-            recipes = self._collect()
-            if not recipes:
-                self.write("没有找到配方：请先选文件或 BP")
+        def done(uri, local_dir, copied):
+            if not uri:
+                self.write('未选择 %s' % key.upper())
                 return
-            self.write(f"开始出图，共 {len(recipes)} 条 → {out_root}")
+            if copied:
+                self.state[key] = local_dir
+                self.write('%s 已导入 %d 个文件' % (key.upper(), copied))
+            else:
+                self.write('%s 导入 0 个文件（空目录或权限被拒）' % key.upper())
 
-            assets = Assets(
-                bp_dir=st["bp"] or None, rp_dir=st["rp"] or None,
-                vanilla_dir=st["vanilla"] or None,
-                wiki_root=p_paths.tool_root(), wiki_icons="auto", wiki_language="en",
-                vanilla_download=not st["offline"], local_only=bool(st["offline"]),
-                tool_root=p_paths.tool_root(), bundle_root=p_paths.tool_root())
-            renderer = Renderer(assets, scale=int(st.get("scale", 4)),
-                                layout=st.get("layout", "modern"), background=None)
+        picking.pick_tree(done, title)
 
-            done = failed = 0
-            for i, path in enumerate(recipes, 1):
-                try:
-                    img, _lay = renderer.render(parse(path))
-                    rel = self._relname(path)
-                    dest = os.path.join(out_root, rel)
-                    os.makedirs(os.path.dirname(dest), exist_ok=True)
-                    img.save(dest)
-                    done += 1
-                except Exception as exc:
-                    failed += 1
-                    if failed <= 5:
-                        self.write(f"! {os.path.basename(path)}: {exc}")
-                self._progress(i / len(recipes))
-            for w in renderer.warnings[:5]:
-                self.write("! " + w)
-            self.write(f"完成 {done}/{len(recipes)}，失败 {failed}")
-            self.write("输出目录: " + out_root)
-        except Exception:
-            self.write("失败:\n" + traceback.format_exc(limit=4))
+    def on_pick_vanilla(self, *_a) -> None:
+        self.write('请选择原版包 zip…')
 
-    def _collect(self) -> list[str]:
-        from mcrender.recipes import collect
-        st = self.state
-        out: list[str] = []
-        for p in st["files"]:
-            if os.path.isdir(p):
-                out += collect(p)
-            elif p.lower().endswith((".zip", ".mcaddon", ".mcpack", ".mcworld")):
-                out += picking.unpack_recipes(p, p_paths.work_dir())
-            elif p.lower().endswith(".json"):
-                out.append(p)
-        if not out and st["bp"] and os.path.isdir(st["bp"]):
-            out = collect(st["bp"])
-        return sorted(dict.fromkeys(out))
+        def done(picked):
+            if not picked:
+                self.write('未选择原版包')
+                return
+            self.state['vanilla'] = picked[0]
+            self.state['offline'] = True
+            self.write('原版包: ' + os.path.basename(picked[0]) + '（已切到本地模式）')
 
-    def _relname(self, path: str) -> str:
-        st = self.state
-        for base in (st["bp"], *(p for p in st["files"] if os.path.isdir(p))):
-            if base and path.startswith(base):
-                return os.path.relpath(path, base)
-        return os.path.basename(path)
+        picking.pick_files(done, multiple=False)
+
+    def on_pick_out(self, *_a) -> None:
+        """选择出图目录（导出时把 PNG 写进该目录的「合成表」文件夹）。"""
+        self.write('请选择出图目录…')
+
+        def done(uri, _local, _copied):
+            if uri:
+                self.state['out_uri'] = uri
+                self.write('出图目录已设置：导出时会写入该目录的「合成表」文件夹')
+            else:
+                self.write('未选择出图目录')
+
+        picking.pick_tree(done, '选择出图目录')
 
     def on_sync(self, *_a) -> None:
         def job():
@@ -295,6 +226,8 @@ class MainView(BoxLayout):
 
 class BRRApp(App):
     def build(self):
+        crashlog.install()
+
         self.title = "合成表生成器"
         return MainView()
 
