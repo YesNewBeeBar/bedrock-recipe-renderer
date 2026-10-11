@@ -506,7 +506,7 @@ class Assets:
                     icon = comps.get("minecraft:icon")
                     if isinstance(icon, dict):
                         icon = icon.get("texture")
-                    if ident and icon:
+                    if ident:
                         self.bp_icons[ident] = icon
                     if ident:
                         self.kinds[ident] = "item"
@@ -564,10 +564,12 @@ class Assets:
                 return kind
         if name in self.item_texture or key in self.item_texture:
             return "item"
-        if (name in self.blocks or key in self.blocks
-                or name in self.terrain_texture or key in self.terrain_texture):
+        # 只认 blocks.json（方块**定义**表）。不用 terrain_texture：
+        # 不少附加包把物品也注册进地形图集，用它会误判成方块（用户反馈过）。
+        if name in self.blocks or key in self.blocks:
             return "block"
-        return ""
+        # 判不出来的按**物品**处理：乱画成立方体比缺图更糟（用户多次反馈过）
+        return "item"
 
     def _load_block_models(self):
         """BP block definitions: ``minecraft:geometry`` + ``minecraft:material_instances``."""
@@ -941,8 +943,9 @@ class Assets:
         #    文章插图），所以这里拿到的要么是游戏物品栏图标，要么就是没有。
         #    离线时 offline=True → 只查本地缓存，不会联网。
         kind = self.kind_of(name)
-        # 方块一律走立方体渲染；物品才用物品栏图标，且绝不画成立方体
-        if self.wiki_icons != "never" and kind != "block":
+        # 物品和方块**都先试维基物品栏图标** —— 游戏里信标在物品栏就是那张带光柱的图标，
+        # 普通立方体反而不对（用户指出过）。拿不到才退回方块立方体。
+        if self.wiki_icons != "never":
             if name not in self.item_texture or _is_wiki_block(name) \
                     or name in WIKI_SPECIAL or kind == "item":
                 img = wiki.fetch_icon(norm, self.wiki_root or ".", self.wiki_language,
