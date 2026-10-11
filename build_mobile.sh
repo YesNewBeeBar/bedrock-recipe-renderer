@@ -11,6 +11,8 @@ echo "=== 1) 同步源码 ==="
 [ -d "$SRC/vanilla" ] && { rm -rf vanilla; cp -r "$SRC/vanilla" .; }
 [ -d "$SRC/wiki_cache" ] && { rm -rf wiki_cache; cp -r "$SRC/wiki_cache" .; }
 cp -f "$SRC/main.py" .
+# 物品/方块判定表（核心用它区分 item / block）
+[ -f "$SRC/vanilla_kinds.json" ] && cp -f "$SRC/vanilla_kinds.json" .
 cp -f "$SRC/buildozer.spec" .
 mkdir -p platform_layer mcrender
 cp -f "$SRC/platform_layer/"*.py platform_layer/
