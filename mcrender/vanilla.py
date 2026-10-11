@@ -42,6 +42,11 @@ CORE_FILES = [
     "textures/ui/brewing_fuel_bar_empty.png",
     "textures/ui/brewing_fuel_pipes.png",
     "textures/ui/brewing_fuel_empty.png",
+    # 酿造台面板实际还要用这几张：缺了就会画成黑杠 / 空燃料条（之前漏列了）
+    "textures/ui/brewing_fuel_bar_full.png",
+    "textures/ui/brewing_pipes.png",
+    "textures/ui/bubbles_empty.png",
+    "textures/ui/bubbles_full.png",
     "textures/ui/bottle_empty.png",
     "textures/ui/flame_empty_image.png",
     "textures/ui/flame_full_image.png",
