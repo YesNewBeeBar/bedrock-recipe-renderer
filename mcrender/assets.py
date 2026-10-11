@@ -1005,7 +1005,7 @@ class Assets:
             shape_faces = self._block_faces(name, block_entry)
             if shape_faces:
                 geo = shapes.build_geometry(shape, None)
-                if geo is not None:
+                if geo is not None and kind != "item":
                     return Icon(ident, "model", faces=self._face_map(shape_faces), geometry=geo,
                                 note=f"built-in shape {shape}")
 
@@ -1046,16 +1046,19 @@ class Assets:
                 img = faces.get("side") or faces.get("up") or faces.get("north")
                 if img is not None:
                     return Icon(ident, "item", item=img, note="flat block sprite")
-            return Icon(ident, "block", faces=faces)
+            if kind != "item":
+                return Icon(ident, "block", faces=faces)
         # 3. direct files (also tried for every alias/variant spelling)
         for cand in [name] + self._extra_candidates(name):
-            for sub, kind in (("items", "item"), ("blocks", "block")):
+            for sub, sub_kind in (("items", "item"), ("blocks", "block")):
                 p = self.find_file(f"textures/{sub}/{cand}")
                 if p:
                     img = self._image(p)
                     if img is None:
                         continue
-                    if kind == "item" or cand in FLAT_BLOCKS:
+                    if sub_kind == "item" or cand in FLAT_BLOCKS or kind == "item":
+                        return Icon(ident, "item", item=img)
+                    if kind == "item":
                         return Icon(ident, "item", item=img)
                     return Icon(ident, "block", faces={k: img for k in ("up", "down", "side")})
         # 4. last resort: the game sometimes suffixes an item's texture file
