@@ -17,6 +17,12 @@ jobs:
     env:
       # libffi 的 autoreconf 靠它找到 libtool.m4，否则报 LT_SYS_SYMBOL_USCORE
       ACLOCAL_PATH: /usr/share/aclocal:/usr/local/share/aclocal
+      # runner 有时会解析到没有出口的 IPv6（Errno 101 Network is unreachable），
+      # 加固 pip 的重试/超时，并显式指定索引
+      PIP_INDEX_URL: https://pypi.org/simple
+      PIP_RETRIES: '5'
+      PIP_DEFAULT_TIMEOUT: '60'
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
     steps:
       - uses: actions/checkout@v4
 
