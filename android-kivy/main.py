@@ -49,7 +49,7 @@ from platform_layer import browser as browser_mod           # noqa: E402
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.0.6"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.0.7"          # 界面会显示，用来确认手机上跑的是哪一版
 
 
 class MainView(BoxLayout):
@@ -207,15 +207,17 @@ class MainView(BoxLayout):
         return uniq
 
     def _diag(self, text: str) -> None:
-        """诊断：既写界面日志，也追加到「出图目录/合成表诊断.log」，方便直接发出来。"""
+        """诊断：写界面日志，并写进「出图目录/合成表/_诊断.log」——
+        放在导出目录**里面**，这样导出 zip 里就带着它，直接发我即可。"""
         line = str(text)
         self._msg(line)
         self._diag_lines.append(line)
-        path = self.state.get("out")
-        if path and os.path.isdir(path):
+        base = self.state.get("out")
+        if not base or not os.path.isdir(base):
+            return
+        for sub in (os.path.join("合成表", "_诊断.log"), "合成表诊断.log"):
             try:
-                with open(os.path.join(path, "合成表诊断.log"), "a",
-                          encoding="utf-8") as fh:
+                with open(os.path.join(base, sub), "a", encoding="utf-8") as fh:
                     fh.write(line + "\n")
             except Exception:
                 pass
@@ -306,6 +308,14 @@ class MainView(BoxLayout):
                 tool_root=p_paths.tool_root(), bundle_root=p_paths.tool_root())
             renderer = Renderer(assets, scale=int(st.get("scale", 4)),
                                 layout=st.get("layout", "modern"), background=None)
+            # 关键状态：RP 到底读到没有、贴图索引有多少条
+            rp_txt = st["rp"] or "（无）"
+            self._diag(f"素材状态: item_texture 键 {len(assets.item_texture)} 个, "
+                       f"terrain {len(assets.terrain_texture)} 个, blocks {len(assets.blocks)} 个")
+            self._diag(f"RP = {rp_txt} | 存在={os.path.isdir(st["rp"]) if st["rp"] else False}")
+            if st["rp"]:
+                tex_n = sum(len(fs) for _b, _d, fs in os.walk(os.path.join(st["rp"], "textures")))
+                self._diag(f"RP 下 textures 文件数: {tex_n}")
 
             done = failed = skipped = 0
             slow: list[tuple[float, str]] = []
@@ -338,6 +348,9 @@ class MainView(BoxLayout):
             slow.sort(reverse=True)
             self._diag("最慢的 5 条（秒 | 文件名）：" +
                        "；".join(f"{d:.2f}|{n}" for d, n in slow[:5]))
+            miss_ids = sorted({str(w).split("for ", 1)[1] for w in renderer.warnings
+                               if str(w).startswith("missing texture for ")})
+            self._diag(f"缺失纹理 id 共 {len(miss_ids)} 个: {miss_ids[:15]}")
             self._diag(f"完成 {done}/{len(recipes)}，失败 {failed}，跳过 {skipped}，"
                        f"总耗时 {_time.time()-t0:.1f}s")
             self._msg(f"完成 {done}/{len(recipes)}，失败 {failed}，跳过 {skipped}，"
