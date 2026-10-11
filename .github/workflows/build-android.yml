@@ -60,7 +60,6 @@ jobs:
           name: bedrock-recipe-renderer-apk
           path: ${{ steps.buildozer.outputs.filename }}
           if-no-files-found: error
-          if-no-files-found: error   # 没出 APK 就是失败，别藏着
 
       - name: Upload build log (失败时排查用)
         if: always()
