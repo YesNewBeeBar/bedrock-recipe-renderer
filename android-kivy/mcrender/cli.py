@@ -98,6 +98,11 @@ def main(argv=None) -> int:
         dest = os.path.join(args.out, target)
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         img.save(dest)
+        try:                              # 同标签物品轮播 GIF（与 GUI 同一核心逻辑）
+            from . import taggif
+            taggif.render_gif(renderer, rec, dest, log=lambda t: None)
+        except Exception:
+            pass
         rows.append((rec, target, lay))
         if not args.quiet:
             print(f"  {target}")
@@ -142,3 +147,6 @@ def main(argv=None) -> int:
         print(f"{len(missing)} item(s) have no texture (see {report})")
     print(f"report: {report}")
     return 0
+
+if __name__ == "__main__":
+    raise SystemExit(main())
