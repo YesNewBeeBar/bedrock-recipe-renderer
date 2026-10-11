@@ -4,25 +4,29 @@
 set -e
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
+
+# 以 root 直接跑时（跳过用户创建的情况）不需要 sudo
+if [ "$(id -u)" = "0" ]; then SUDO=""; else SUDO="sudo"; fi
+
 WIN_SDK="/mnt/d/android-toolchain/sdk"
 WORK="$HOME/brr"                     # 纯 ASCII 工程目录，避免 NDK 遇到中文路径
 
 echo "==> 1/4 换 apt 源（清华），失败就跳过"
 if [ -f /etc/apt/sources.list ]; then
-    sudo cp -n /etc/apt/sources.list /etc/apt/sources.list.bak || true
-    sudo sed -i 's|http://archive.ubuntu.com|https://mirrors.tuna.tsinghua.edu.cn|g;
+    ${SUDO:+$SUDO }cp -n /etc/apt/sources.list /etc/apt/sources.list.bak || true
+    ${SUDO:+$SUDO }sed -i 's|http://archive.ubuntu.com|https://mirrors.tuna.tsinghua.edu.cn|g;
                  s|http://security.ubuntu.com|https://mirrors.tuna.tsinghua.edu.cn|g' \
         /etc/apt/sources.list || true
 fi
 if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
-    sudo sed -i 's|http://archive.ubuntu.com|https://mirrors.tuna.tsinghua.edu.cn|g;
+    ${SUDO:+$SUDO }sed -i 's|http://archive.ubuntu.com|https://mirrors.tuna.tsinghua.edu.cn|g;
                  s|http://security.ubuntu.com|https://mirrors.tuna.tsinghua.edu.cn|g' \
         /etc/apt/sources.list.d/ubuntu.sources || true
 fi
 
 echo "==> 2/4 安装依赖"
-sudo apt-get update -qq
-sudo apt-get install -y --no-install-recommends \
+${SUDO:+$SUDO }apt-get update -qq
+${SUDO:+$SUDO }apt-get install -y --no-install-recommends \
     git zip unzip rsync openjdk-17-jdk python3-pip python3-venv \
     autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev \
     cmake libffi-dev libssl-dev automake build-essential ccache
