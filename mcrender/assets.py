@@ -866,16 +866,12 @@ class Assets:
         # 0. special renderers and biome-tinted plants: the wiki's inventory render
         #    is closer to the game than anything we can build from the add-on
         # 0. wiki inventory icon (the game's own item sprite)
-        #    除了原本的"维基方块"（床/旗帜/头颅…），**没有物品图标的方块类物品**也走这里：
-        #    信标、铜块这类物品在 item_texture 里查不到，之前会被画成方块模型
-        #    （issue #3 / #6），而游戏里它们的库存图标就是维基那张图。
-        needs_wiki = (name in self.blocks or norm in self.blocks
-                      or _is_wiki_block(name))
-        if self.wiki_icons != "never" and (self.wiki_icons == "always" or needs_wiki):
-            # a plant that is also a plain item (kelp, wheat, nether wart, ...) keeps
-            # its item sprite: the game does not draw the block model for those
-            if (name not in self.item_texture or name in WIKI_SPECIAL
-                    or not _is_wiki_block(name)):
+        #    对**任何**物品都试一次：抓取端已经只认 "Invicon X[_BE].png"（不再回退到
+        #    文章插图），所以这里拿到的要么是游戏物品栏图标，要么就是没有。
+        #    离线时 offline=True → 只查本地缓存，不会联网。
+        if self.wiki_icons != "never":
+            if name not in self.item_texture or _is_wiki_block(name) \
+                    or name in WIKI_SPECIAL:
                 img = wiki.fetch_icon(norm, self.wiki_root or ".", self.wiki_language,
                                       offline=self.local_only)
                 if img is not None:
