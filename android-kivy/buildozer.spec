@@ -8,7 +8,9 @@ source.exclude_dirs = bin, .buildozer, __pycache__, tests
 version = 1.0.0
 
 # Pillow 由 python-for-android 的官方 recipe 构建（这是选 Kivy 路线的唯一原因）
-requirements = python3,kivy,pillow,certifi,plyer,android
+# 只留必需项：certifi 非必需（net.py 有系统证书回退）、plyer 非必需
+# （picking.py 会退回 jnius 的 ACTION_OPEN_DOCUMENT）
+requirements = python3,kivy,pillow,android
 
 orientation = portrait
 fullscreen = 0
@@ -24,6 +26,9 @@ android.logcat_filters = *:S python:D
 
 icon.filename = %(source.dir)s/icon.png
 presplash.filename = %(source.dir)s/icon.png
+
+# p4a 新版修了大量 Python 3.13+/NDK r28 的 wheel 标签问题
+p4a.branch = develop
 
 [buildozer]
 log_level = 2
