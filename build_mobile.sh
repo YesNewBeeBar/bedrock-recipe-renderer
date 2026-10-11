@@ -9,6 +9,7 @@ cd /root/brr || exit 1
 
 echo "=== 1) 同步源码 ==="
 [ -d "$SRC/vanilla" ] && { rm -rf vanilla; cp -r "$SRC/vanilla" .; }
+[ -d "$SRC/wiki_cache" ] && { rm -rf wiki_cache; cp -r "$SRC/wiki_cache" .; }
 cp -f "$SRC/main.py" .
 cp -f "$SRC/buildozer.spec" .
 mkdir -p platform_layer mcrender
@@ -17,6 +18,7 @@ cp -f "$SRC/mcrender/"*.py mcrender/
 [ -d "$SRC/fonts" ] && { mkdir -p fonts; cp -f "$SRC/fonts/"* fonts/ 2>/dev/null || true; }
 find . -maxdepth 2 -name '*.py' -exec sed -i 's/\r$//' {} + 2>/dev/null || true
 echo "  vanilla 文件数: $(find vanilla -type f 2>/dev/null | wc -l)"
+echo "  wiki 图标:      $(find wiki_cache -name '*.png' 2>/dev/null | wc -l) 个 png"
 echo "  platform_layer: $(ls platform_layer/*.py | wc -l) 个模块"
 
 echo "=== 2) 构建 ==="

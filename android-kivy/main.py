@@ -49,7 +49,7 @@ from platform_layer import browser as browser_mod           # noqa: E402
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.0.7"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.0.8"          # 界面会显示，用来确认手机上跑的是哪一版
 
 
 class MainView(BoxLayout):
@@ -222,6 +222,38 @@ class MainView(BoxLayout):
             except Exception:
                 pass
 
+    def _seed_wiki_cache(self) -> int:
+        """把随包内置的 wiki 图标缓存并进可写缓存（只补缺失，不动已有）。
+
+        头颅/头、床、旗帜、告示牌、潜影盒、花盆、植物、药水、失水恶魂等，
+        桌面端是靠 wiki 图标（= 游戏的库存图标）渲染的；手机离线又没缓存时会退回
+        "内置几何体"，画出来与游戏不一致。把缓存随包带上即可与桌面版表现一致。
+        """
+        import shutil
+        here = os.path.dirname(os.path.abspath(__file__))
+        src = os.path.join(here, "wiki_cache")
+        if not os.path.isdir(src):
+            return 0
+        dst = os.path.join(p_paths.tool_root(), "wiki_cache")
+        copied = 0
+        for base, _dirs, files in os.walk(src):
+            rel = os.path.relpath(base, src)
+            target = dst if rel == "." else os.path.join(dst, rel)
+            try:
+                os.makedirs(target, exist_ok=True)
+            except Exception:
+                continue
+            for f in files:
+                fp = os.path.join(target, f)
+                if os.path.exists(fp):
+                    continue
+                try:
+                    shutil.copyfile(os.path.join(base, f), fp)
+                    copied += 1
+                except Exception:
+                    pass
+        return copied
+
     def _unpack_packs(self, archive: str):
         """解包并把里面的 BP / RP 根目录找出来（与桌面版同样的判定方式）。"""
         size_mb = os.path.getsize(archive) / 1048576
@@ -276,7 +308,9 @@ class MainView(BoxLayout):
 
             import time as _time
             t0 = _time.time()
+            seeded = self._seed_wiki_cache()
             self._diag(f"===== v{APP_VERSION} 出图开始 =====")
+            self._diag(f"内置 wiki 图标缓存并入 {seeded} 个文件")
             self._diag(f"选择: files={st['files']} bp={st['bp']} rp={st['rp']} "
                        f"vanilla={st['vanilla']} offline={st['offline']}")
             self._diag(f"输出目录: {out_root} 可写={os.access(out_root, os.W_OK)}")
