@@ -104,6 +104,16 @@ python mcrender_gui.py --sync-vanilla
 - 现有的版本可能会有部分瑕疵，如文字被错误裁剪。但若成图出现紫黑块请优先检查受否写错id。如确认确实没问题，欢迎联系我并提供出错图片和模组文件
 - 该软件使用Deepseek Harness编写，部分描述我也不知道是否正确，欢迎指正
 
+## 手机版（安卓）
+
+同一套渲染核心的安卓移植版，界面用 Kivy 重写，**完全离线可用**（原版素材与中文字体随包内置）。
+
+- 安装包：`合成表生成器-v1.0.9-Android.apk`（约 34 MB，`arm64-v8a`，Android 7+）
+- 使用引导：[android-kivy/使用说明.md](android-kivy/使用说明.md)
+- 构建与实现细节：[android-kivy/README.md](android-kivy/README.md)
+
+安卓版与桌面版共用 `mcrender/`，两边发现的核心 bug 修复会互相同步。
+
 ## License
 
 [MIT](LICENSE)
