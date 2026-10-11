@@ -17,7 +17,8 @@ android.api = 34
 android.minapi = 24
 # 只编 64 位，构建时间减半；需要老机型再加 armeabi-v7a
 android.archs = arm64-v8a
-android.permissions = INTERNET, ACCESS_NETWORK_STATE
+# MANAGE_EXTERNAL_STORAGE：所有文件访问权限（内置浏览器需要；侧载分发没问题）
+android.permissions = INTERNET, ACCESS_NETWORK_STATE, MANAGE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE
 android.allow_backup = True
 android.enable_androidx = True
 # SAF 目录读写（DocumentFile）需要它
