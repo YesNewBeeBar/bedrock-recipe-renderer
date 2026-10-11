@@ -592,6 +592,27 @@ class Assets:
                     return p
         return self.vanilla.find(tok, extensions=(".png", ".tga"))
 
+    @staticmethod
+    def _texture_by_variant(value, variant):
+        """item_texture 的**列表**项要按 data 值取（Bedrock 的桶/刷怪蛋就是这样写的）。
+
+        ``bucket`` 的列表是 [空桶, 奶桶, 水桶, 岩浆桶, …]，
+        配方写 ``{"item": "minecraft:bucket", "data": 10}`` 时不能再一律取第 0 项，
+        否则所有桶都画成空桶（issue #5）。
+        """
+        if isinstance(value, dict):
+            value = value.get("textures", value)
+        if isinstance(value, list):
+            if variant is not None and str(variant).lstrip("-").isdigit():
+                idx = int(variant)
+                if 0 <= idx < len(value):
+                    item = value[idx]
+                    return item if isinstance(item, str) else None
+                return None
+            first = value[0] if value else None
+            return first if isinstance(first, str) else None
+        return value if isinstance(value, str) else None
+
     def _first_texture(self, value):
         if isinstance(value, str):
             return value
@@ -844,11 +865,17 @@ class Assets:
 
         # 0. special renderers and biome-tinted plants: the wiki's inventory render
         #    is closer to the game than anything we can build from the add-on
-        if self.wiki_icons != "never" and (self.wiki_icons == "always"
-                                           or _is_wiki_block(name)):
+        # 0. wiki inventory icon (the game's own item sprite)
+        #    除了原本的"维基方块"（床/旗帜/头颅…），**没有物品图标的方块类物品**也走这里：
+        #    信标、铜块这类物品在 item_texture 里查不到，之前会被画成方块模型
+        #    （issue #3 / #6），而游戏里它们的库存图标就是维基那张图。
+        needs_wiki = (name in self.blocks or norm in self.blocks
+                      or _is_wiki_block(name))
+        if self.wiki_icons != "never" and (self.wiki_icons == "always" or needs_wiki):
             # a plant that is also a plain item (kelp, wheat, nether wart, ...) keeps
             # its item sprite: the game does not draw the block model for those
-            if name not in self.item_texture or name in WIKI_SPECIAL:
+            if (name not in self.item_texture or name in WIKI_SPECIAL
+                    or not _is_wiki_block(name)):
                 img = wiki.fetch_icon(norm, self.wiki_root or ".", self.wiki_language,
                                       offline=self.local_only)
                 if img is not None:
@@ -908,11 +935,19 @@ class Assets:
         candidates += self._extra_candidates(name)
         for cand in candidates:
             for shape in (cand, f"{ns}.{cand}", f"{ns}:{cand}") if ":" not in cand else (cand,):
-                if shape in self.item_texture:
-                    img = self._image(self.find_file(self._first_texture(
-                        self.item_texture[shape])))
-                    if img is not None:
-                        return Icon(ident, "item", item=img)
+                if shape not in self.item_texture:
+                    continue
+                # 列表项按 data 值取（桶 #0 空 / #1 奶 / #3 岩浆 …）—— issue #5
+                token = self._texture_by_variant(self.item_texture[shape], variant)
+                if not isinstance(token, str):
+                    continue
+                # 有些物品在索引里指向**实体**贴图（如 shield → textures/entity/shield）——
+                # 那不是物品图标，用了就会画成一整张实体贴图（issue #4）
+                if "/entity/" in token.replace("\\", "/"):
+                    continue
+                img = self._image(self.find_file(token))
+                if img is not None:
+                    return Icon(ident, "item", item=img)
         # 3. block faces from blocks.json / terrain_texture
         block_entry = self.blocks.get(norm) or self.blocks.get(name) or self.blocks.get(f"minecraft:{name}")
         faces = self._block_faces(name, block_entry)
@@ -954,6 +989,14 @@ class Assets:
                     img = self._image(p)
                     if img is not None:
                         return Icon(ident, "item", item=img, note=f"texture {cand}{suffix}")
+        # 5. 通用兜底：以上都没找到时，试一次维基库存图标。
+        #    盾牌就是典型：item_texture 里只有实体贴图（已被跳过），方块表里也没有，
+        #    而游戏里它的库存图标就是维基那张 32×32 的图（issue #4）。
+        if self.wiki_icons != "never":
+            img = wiki.fetch_icon(norm, self.wiki_root or ".", self.wiki_language,
+                                  offline=self.local_only)
+            if img is not None:
+                return Icon(ident, "item", item=img, smooth=True, note="wiki icon")
         return Icon(ident, "missing", item=missing_texture(16), note="no texture found")
 
     @staticmethod

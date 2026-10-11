@@ -30,6 +30,7 @@ _FAILS: set = set()
 _STREAK = {"n": 0}
 _OFFLINE = {"yes": False}
 _NET = {"ok": False}          # did any request actually reach the wiki?
+_LAST = {"answered": False}   # did *this* request get an answer (404 counts)?
 
 
 def _note_failure(ident: str, root: str, permanent: bool = False) -> None:
@@ -120,6 +121,7 @@ def _search_image(wiki: str, query: str) -> str | None:
 
 
 def _download(url: str, dest: str) -> bool:
+    _LAST["answered"] = False       # 这次请求服务器有没有真的回话（404 也算回话）
     if _OFFLINE["yes"]:
         return False
     try:
@@ -131,10 +133,19 @@ def _download(url: str, dest: str) -> bool:
         with open(dest, "wb") as fh:
             fh.write(data)
         _NET["ok"] = True
+        _LAST["answered"] = True
         _STREAK["n"] = 0
         return True
-    except urllib.error.HTTPError:
+    except urllib.error.HTTPError as exc:
         _NET["ok"] = True
+        # 429 = 被限流、5xx = 服务器故障 —— 都不是"这个文件不存在"，
+        # 不能写永久标记（否则一次限流就会把一大批图标永久判死）
+        if exc.code in (429, 500, 502, 503, 504):
+            _STREAK["n"] += 1
+            if _STREAK["n"] >= MAX_CONSECUTIVE_FAILURES:
+                _OFFLINE["yes"] = True
+            return False
+        _LAST["answered"] = True    # 404：服务器明确回答"没有这个文件"
         _STREAK["n"] = 0
         return False
     except Exception:
@@ -239,5 +250,5 @@ def fetch_icon(ident: str, root: str, language: str = "en",
             im = _usable(dest)
             if im is not None:
                 return im
-    _note_failure(ident, root, permanent=_NET["ok"])
+    _note_failure(ident, root, permanent=_LAST["answered"])
     return None

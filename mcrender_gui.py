@@ -139,6 +139,13 @@ def save_config(cfg: dict) -> None:
 
 
 # --------------------------------------------------------------------- packs
+def safe_folder_name(name: str) -> str:
+    """把附加包文件名变成安全的文件夹名（去掉 Windows 不允许的字符）。"""
+    bad = r'<>:"/\|?*'
+    out = "".join(("_" if c in bad or ord(c) < 32 else c) for c in str(name)).strip(" .")
+    return out or "合成表"
+
+
 def is_archive(path: str) -> bool:
     return path.lower().endswith(ARCHIVE_EXTS)
 
@@ -335,11 +342,13 @@ class Generator:
             self.log(f"解包 {os.path.basename(path)}：BP {len(bp)} 个、RP {len(rp)} 个")
             if not bp and not rp:
                 self.log("  ↳ 里面没有 manifest.json，按普通压缩包处理")
-                return self.render_files(find_recipes(dest), bp or None, rp or None)
+                return self.render_files(find_recipes(dest), bp or None, rp or None,
+                                         pack=os.path.splitext(os.path.basename(path))[0])
             files = []
             for root in bp:
                 files += find_recipes(root)
-            return self.render_files(files, bp or None, rp or None)
+            return self.render_files(files, bp or None, rp or None,
+                                     pack=os.path.splitext(os.path.basename(path))[0])
 
         if os.path.isdir(path):
             kinds = pack_kinds(path)
@@ -358,20 +367,25 @@ class Generator:
                         rp = [paired]
                     elif self.cfg.get("rp"):
                         self.log(f"使用配置里的资源包：{self.cfg['rp']}")
-                return self.render_files(find_recipes(path), bp, rp)
-            return self.render_files(find_recipes(path), None, None)
+                return self.render_files(find_recipes(path), bp, rp,
+                                         pack=os.path.basename(os.path.normpath(path)))
+            return self.render_files(find_recipes(path), None, None,
+                                     pack=os.path.basename(os.path.normpath(path)))
 
         if path.lower().endswith(".json"):
             return self.render_files([path], None, None)
         self.log(f"跳过 {os.path.basename(path)}：不认识的文件类型")
         return []
 
-    def render_files(self, files: list, bp=None, rp=None) -> list:
+    def render_files(self, files: list, bp=None, rp=None, pack=None) -> list:
         cfg = self.cfg
         if not (cfg.get("out") or "").strip():
             self.log("还没有选输出目录 —— 请点「输出目录」那一行的「选择…」后再出图")
             return []
         out_dir = self.out_root()
+        if pack:
+            # 每个附加包一个文件夹（用附加包文件名），不同包的同名配方不会互相覆盖
+            out_dir = os.path.join(out_dir, safe_folder_name(pack))
         os.makedirs(out_dir, exist_ok=True)
         if not files:
             self.log("没有找到 recipe json")
