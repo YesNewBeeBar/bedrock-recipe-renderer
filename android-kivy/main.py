@@ -11,6 +11,24 @@ import os
 import threading
 import traceback
 
+
+# ---------------------------------------------------------------------------
+# Kivy 默认字体不含中文 → 界面上的按钮/标签会显示成方框。
+# 这里把随包字体注册为 Kivy 的默认字体（必须在任何控件创建之前执行）。
+import os as _os
+
+def _install_ui_font() -> str:
+    from kivy.core.text import LabelBase, DEFAULT_FONT
+    here = _os.path.dirname(_os.path.abspath(__file__))
+    for name in ("NotoSansSC-Regular.ttf", "NotoSansSC-Regular.otf"):
+        path = _os.path.join(here, "fonts", name)
+        if _os.path.isfile(path):
+            LabelBase.register(DEFAULT_FONT, fn_regular=path)
+            return path
+    return ""
+
+UI_FONT = _install_ui_font()
+
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.metrics import dp
