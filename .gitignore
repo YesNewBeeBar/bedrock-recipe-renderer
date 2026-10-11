@@ -32,3 +32,6 @@ android/logs/
 android/.venv*
 .venv*/
 *.apk
+
+# buildozer.spec 是构建配置，必须提交（上面的 *.spec 是 PyInstaller 产物）
+!android-kivy/buildozer.spec
