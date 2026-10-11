@@ -141,10 +141,9 @@ def save_config(cfg: dict) -> None:
 
 # --------------------------------------------------------------------- packs
 def safe_folder_name(name: str) -> str:
-    """把附加包文件名变成安全的文件夹名（去掉 Windows 不允许的字符）。"""
-    bad = r'<>:"/\|?*'
-    out = "".join(("_" if c in bad or ord(c) < 32 else c) for c in str(name)).strip(" .")
-    return out or "合成表"
+    """安全文件夹名 —— 逻辑在核心 mcrender/output.py，三端共用。"""
+    from mcrender import output
+    return output.safe_folder_name(name)
 
 
 def is_archive(path: str) -> bool:

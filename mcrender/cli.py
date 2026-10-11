@@ -47,6 +47,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--background", default="none",
                    help="'none' for transparency, or a colour like #C6C6C6 / white")
     p.add_argument("--list", action="store_true", help="list matching recipes and exit")
+    p.add_argument("--pack-name", default="",
+                   help="sub-folder under 合成表/ to group this add-on's images "
+                        "(default: derived from --bp)")
+    p.add_argument("--no-pack-folder", action="store_true",
+                   help="write straight into <out>/合成表 without a per-add-on folder")
     p.add_argument("--report", default=None, help="report path (default <out>/_report.md)")
     p.add_argument("--quiet", action="store_true")
     return p
@@ -86,6 +91,14 @@ def main(argv=None) -> int:
                         glyph_size=args.title_size, layout=args.layout)
 
     os.makedirs(args.out, exist_ok=True)
+    # 按附加包分文件夹（与桌面 GUI / 移动端同一套规则）
+    from . import output as output_mod
+    if args.no_pack_folder:
+        out_dir = args.out
+    else:
+        pack = args.pack_name or output_mod.pack_folder_name(args.bp)
+        out_dir = output_mod.output_dir_for(args.out, pack)
+    os.makedirs(out_dir, exist_ok=True)
     rows, skipped, failures = [], [], []
     for rec in picked:
         rel = os.path.relpath(rec.path, recipes_dir)
@@ -95,7 +108,7 @@ def main(argv=None) -> int:
         except Exception as exc:
             skipped.append((rec, str(exc)))
             continue
-        dest = os.path.join(args.out, target)
+        dest = os.path.join(out_dir, target)
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         img.save(dest)
         try:                              # 同标签物品轮播 GIF（与 GUI 同一核心逻辑）
@@ -115,7 +128,7 @@ def main(argv=None) -> int:
         if assets.resolve(ident).kind == "missing":
             missing.add(ident)
 
-    report = args.report or os.path.join(args.out, "_report.md")
+    report = args.report or os.path.join(out_dir, "_report.md")
     with open(report, "w", encoding="utf-8") as fh:
         fh.write("# Recipe render report\n\n")
         fh.write(f"- behaviour pack: `{args.bp}`\n- resource pack: `{args.rp}`\n")
