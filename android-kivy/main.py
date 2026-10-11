@@ -367,6 +367,12 @@ class MainView(BoxLayout):
                     os.makedirs(os.path.dirname(dest), exist_ok=True)
                     img.save(dest)
                     done += 1
+                    # 同标签物品轮播 GIF（与桌面端同一核心逻辑）
+                    try:
+                        from mcrender import taggif
+                        taggif.render_gif(renderer, rec, dest, log=self._diag)
+                    except Exception as exc:
+                        self._diag(f"   ! GIF 跳过：{exc}")
                 except Exception as exc:
                     failed += 1
                     if failed <= 5:

@@ -476,8 +476,10 @@ class Renderer:
             return
         if ident and str(ident).startswith("tag:"):
             tag = str(ident)[4:]
-            resolved = (TAG_ITEMS.get(tag) or TAG_ITEMS.get("minecraft:" + tag.split(":")[-1])
-                        or self.assets.tag_items.get(tag))   # tags the pack itself declares
+            # 顺序：调用方覆盖（GIF 轮播会临时改它）→ 包内声明的成员 → 原版默认代表
+            resolved = (self.assets.tag_items.get(tag)
+                        or TAG_ITEMS.get(tag)
+                        or TAG_ITEMS.get("minecraft:" + tag.split(":")[-1]))
             if resolved:
                 self.warnings.append(f"item tag {tag} drawn as {resolved}")
                 ident = resolved
