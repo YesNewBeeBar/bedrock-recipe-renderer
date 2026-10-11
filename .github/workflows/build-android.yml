@@ -19,7 +19,6 @@ jobs:
       ACLOCAL_PATH: /usr/share/aclocal:/usr/local/share/aclocal
       # runner 有时会解析到没有出口的 IPv6（Errno 101 Network is unreachable），
       # 加固 pip 的重试/超时，并显式指定索引
-      PIP_INDEX_URL: https://pypi.org/simple
       PIP_RETRIES: '5'
       PIP_DEFAULT_TIMEOUT: '60'
       PIP_DISABLE_PIP_VERSION_CHECK: '1'
@@ -32,6 +31,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'   # 与 p4a 目标 ABI 对齐（日志里是 cp314）
+
       - name: Cache buildozer / SDK / NDK
         uses: actions/cache@v4
         with:
@@ -41,25 +45,33 @@ jobs:
           key: buildozer-${{ runner.os }}-${{ hashFiles('android-kivy/buildozer.spec') }}
           restore-keys: buildozer-${{ runner.os }}-
 
-      # 用社区维护的 buildozer action：它会装好与目标一致的 Python + SDK/NDK + pip 配置，
-      # 避免手搓环境时出现的 "cp314 wheel is not a supported wheel on this platform"
-      - name: Build with buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          workdir: android-kivy
-          buildozer_version: stable
-          command: android debug
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            git zip unzip openjdk-17-jdk autoconf automake libtool libtool-bin \
+            libltdl-dev m4 gettext pkg-config zlib1g-dev libncurses5-dev \
+            libncursesw5-dev cmake libffi-dev libssl-dev build-essential ccache
+          ls -l /usr/share/aclocal/libtool.m4
 
-      - name: Show APK path
-        run: echo "apk=${{ steps.buildozer.outputs.filename }}"
+      - name: Install buildozer
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install buildozer cython
+
+      - name: Build debug APK
+        working-directory: android-kivy
+        shell: bash
+        run: |
+          set -o pipefail                     # 否则 tee 会顶替 buildozer 的退出码
+          yes | buildozer -v android debug 2>&1 | tee build.log
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: bedrock-recipe-renderer-apk
-          path: ${{ steps.buildozer.outputs.filename }}
-          if-no-files-found: error
+          path: android-kivy/bin/*.apk
+          if-no-files-found: error   # 没出 APK 就是失败，别藏着
 
       - name: Upload build log (失败时排查用)
         if: always()
