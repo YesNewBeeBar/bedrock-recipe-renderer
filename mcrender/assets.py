@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import glob
 import os
+import re
 from dataclasses import dataclass, field
 
 from PIL import Image
@@ -528,6 +529,43 @@ class Assets:
                     self.block_models[ident] = {"geometry": geometry, "textures": textures}
 
     # ----------------------------------------------------------- textures
+    @staticmethod
+    def _key_tokens(text: str) -> set:
+        """把 id / item_texture 键拆成可比较的词元。
+
+        lv0stone_boots        → {lv0stone, boots, lv0, stone}
+        stonecraft.boots.lv0  → {stonecraft, boots, lv0}
+        """
+        text = text.split(":")[-1]
+        out = set()
+        for part in re.split(r"[^0-9A-Za-z]+", text):
+            if not part:
+                continue
+            out.add(part.lower())
+            for m in re.finditer(r"[0-9]+|[A-Za-z]+", part):
+                out.add(m.group(0).lower())
+        return out
+
+    def _fuzzy_item_key(self, name: str, exclude=None) -> str | None:
+        """按词元重合度，在 item_texture 里找最像这个物品 id 的键。"""
+        want = self._key_tokens(name)
+        if not want:
+            return None
+        best, best_score, best_hits = None, 0.0, 0
+        for key in self.item_texture:
+            if exclude and key in exclude:
+                continue
+            have = self._key_tokens(key)
+            if not have:
+                continue
+            hits = len(want & have)
+            if hits < 2:                      # 只重合一个词太容易误判
+                continue
+            score = hits / max(1, min(len(want), len(have)))
+            if (score, hits) > (best_score, best_hits):
+                best, best_score, best_hits = key, score, hits
+        return best if best_score >= 0.6 else None
+
     def _image(self, path: str | None) -> Image.Image | None:
         if not path:
             return None
@@ -781,6 +819,11 @@ class Assets:
         if icon_key:
             candidates.append(icon_key)
         candidates += [f"{ns}.{name}", norm, name]
+        # 兜底：有些包把 item_texture 的键拼成 "命名空间.类别.等级"（如 stonecraft.boots.lv0），
+        # 而物品 id 是 lv0stone_boots —— 直接按名字查必然落空。这里按"词元"找最接近的键。
+        fuzzy = self._fuzzy_item_key(name, exclude=set(candidates))
+        if fuzzy and fuzzy not in candidates:
+            candidates.append(fuzzy)
 
         # 0a. potions: the game paints the grayscale overlay over the bottle with the
         #     potion's own colour, so a legacy data value (or potion_type) must not all

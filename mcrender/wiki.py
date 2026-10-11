@@ -171,18 +171,6 @@ def miss_path(ident: str, root: str) -> str:
     return os.path.join(cache_dir(root), _safe(ident.replace(":", "__")) + ".none")
 
 
-def _note_failure(ident: str, root: str) -> None:
-    _FAILS.add(ident)
-    _STREAK["n"] += 1
-    if _STREAK["n"] >= MAX_CONSECUTIVE_FAILURES:
-        _OFFLINE["yes"] = True
-    try:
-        with open(miss_path(ident, root), "w", encoding="utf-8") as fh:
-            fh.write("no wiki icon\n")
-    except OSError:
-        pass
-
-
 def fetch_file(name: str, root: str, language: str = "en",
                cache_name: str | None = None) -> Image.Image | None:
     """Download a specific ``File:`` image (the wiki's per-item sprite sheets)."""
