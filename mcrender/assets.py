@@ -338,6 +338,7 @@ class Assets:
     block_models: dict = field(default_factory=dict)
     geometries: dict = field(default_factory=dict)
     tag_items: dict = field(default_factory=dict)     # "namespace:tag" -> a member item id
+    tag_members: dict = field(default_factory=dict)   # "namespace:tag" -> [all known members]
 
     def __post_init__(self):
         self.rp_roots = []
@@ -498,6 +499,41 @@ class Assets:
                         for tag in (tags.get("tags") or []):
                             if isinstance(tag, str):
                                 self.tag_items.setdefault(tag, ident)
+                                members = self.tag_members.setdefault(tag, [])
+                                if ident not in members:
+                                    members.append(ident)
+
+    def members_for_tag(self, tag: str, limit: int = 12) -> list:
+        """标签的已知成员列表（用于「同标签物品轮播」的 GIF）。
+
+        来源：① 附加包自己声明的 tag 成员（最准）② 原版代表物品
+              ③ 按名字猜：minecraft:planks → item_texture 里所有 *_planks
+        """
+        out: list = []
+        seen = set()
+        for cand in (tag, tag.split(":")[-1] if ":" in tag else tag,
+                     "minecraft:" + tag.split(":")[-1]):
+            for member in self.tag_members.get(cand, []):
+                if member not in seen:
+                    seen.add(member)
+                    out.append(member)
+        from .render import TAG_ITEMS          # 延迟导入，避免循环依赖
+        rep = TAG_ITEMS.get(tag) or TAG_ITEMS.get("minecraft:" + tag.split(":")[-1])
+        if rep and rep not in seen:
+            seen.add(rep)
+            out.append(rep)
+        # 名字启发：minecraft:planks → acacia_planks / birch_planks / ...
+        # （方块类物品的键在 blocks.json，不在 item_texture，两边都要找）
+        last = tag.split(":")[-1]
+        if len(out) < 2:
+            pool = list(self.item_texture) + list(self.blocks)
+            for key in sorted(set(pool)):
+                short = key.split(":")[-1]
+                if short.endswith("_" + last) or short == last:
+                    if key not in seen:
+                        seen.add(key)
+                        out.append(key)
+        return out[:limit]
 
     def _load_block_models(self):
         """BP block definitions: ``minecraft:geometry`` + ``minecraft:material_instances``."""
