@@ -30,7 +30,7 @@ def _install_ui_font() -> str:
 UI_FONT = _install_ui_font()
 
 from kivy.app import App
-from kivy.clock import Clock
+from kivy.clock import Clock, mainthread
 from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
@@ -44,7 +44,7 @@ from kivy.uix.textinput import TextInput
 from platform_layer import fonts as p_fonts
 from platform_layer import net as p_net
 from platform_layer import paths as p_paths
-from platform_layer import picking, storage
+from platform_layer import androidfs, picking, storage
 
 
 class MainView(BoxLayout):
@@ -52,7 +52,7 @@ class MainView(BoxLayout):
         super().__init__(orientation="vertical", padding=dp(6), spacing=dp(4), **kw)
         self.state = {
             "bp": "", "rp": "", "vanilla": "", "out": p_paths.default_output_dir(),
-            "files": [], "offline": False, "zip": "",
+            "files": [], "offline": False, "zip": "", "out_uri": "",
         }
         self._build()
 
@@ -90,7 +90,7 @@ class MainView(BoxLayout):
         self.add_widget(self._row(
             Label(text="只用本地(不联网)", size_hint_x=None, width=dp(150)),
             Switch(active=False, on_active=self._set_offline),
-            Label(text="输出: 私有目录", size_hint_x=None, width=dp(120)),
+            self._btn("选择出图目录", self.on_pick_out),
         ))
         self.add_widget(self._row(
             self._btn("▶ 开始出图", self.on_start),
@@ -124,32 +124,57 @@ class MainView(BoxLayout):
         Clock.schedule_once(lambda *_: setattr(self.bar, "value", float(value)))
 
     # ------------------------------------------------------------- 选择器
+    # Android 的 SAF 选择器**必须在主线程**调用（startActivityForResult 不允许从子线程调），
+    # 所以这三个回调不再包后台线程；只有渲染才放线程里。
+    @mainthread
     def on_pick_files(self, *_a) -> None:
-        def job():
-            picked = picking.pick_files(multiple=True)
-            if picked:
-                self.state["files"] = picked
-                self.write(f"已选 {len(picked)} 个文件")
-                for p in picked[:3]:
-                    self.write("  " + os.path.basename(p))
-        threading.Thread(target=job, daemon=True).start()
+        picked = picking.pick_files(multiple=True)
+        if picked:
+            self.state["files"] = picked
+            self.write(f"已选 {len(picked)} 个文件")
+            for p in picked[:3]:
+                self.write("  " + os.path.basename(p))
+        else:
+            self.write("未选择文件（若点了没反应，说明选择器被系统拦下）")
 
+    @mainthread
     def _pick_dir(self, key: str) -> None:
-        def job():
-            picked = picking.pick_dir()
-            if picked:
-                self.state[key] = picked
-                self.write(f"{key.upper()}: {picked}")
-        threading.Thread(target=job, daemon=True).start()
+        """BP/RP 必须是文件夹：用 SAF 目录选择器，再把内容导入 App 私有目录。"""
+        title = "选择行为包 BP 文件夹" if key == "bp" else "选择资源包 RP 文件夹"
+        self.write(f"请选择 {key.upper()} 文件夹…")
+        uri = androidfs.pick_tree(title)
+        if not uri:
+            self.write(f"未选择 {key.upper()} 文件夹")
+            return
+        dest = os.path.join(p_paths.data_dir(), "packs", key)
+        self.write("正在导入文件夹内容…")
+        n = androidfs.import_tree(uri, dest)
+        if n:
+            self.state[key] = dest
+            self.write(f"{key.upper()} 已导入 {n} 个文件 → {dest}")
+        else:
+            self.write(f"{key.upper()} 导入失败（目录为空或权限被拒）")
 
+    @mainthread
+    def on_pick_out(self, *_a) -> None:
+        """选择出图目录（写回用户选的文件夹，而不是只能待在私有目录）。"""
+        self.write("请选择出图目录…")
+        uri = androidfs.pick_tree("选择出图目录")
+        if uri:
+            self.state["out_uri"] = uri
+            self.write("出图目录已设置（出图后点导出会写入该目录）")
+        else:
+            self.write("未选择出图目录")
+
+    @mainthread
     def on_pick_vanilla(self, *_a) -> None:
-        def job():
-            picked = picking.pick_files(multiple=False)
-            if picked:
-                self.state["vanilla"] = picked[0]
-                self.state["offline"] = True
-                self.write("原版包: " + picked[0] + "（已自动切到本地模式）")
-        threading.Thread(target=job, daemon=True).start()
+        picked = picking.pick_files(multiple=False)
+        if picked:
+            self.state["vanilla"] = picked[0]
+            self.state["offline"] = True
+            self.write("原版包: " + picked[0] + "（已自动切到本地模式）")
+        else:
+            self.write("未选择原版包")
 
     # --------------------------------------------------------------- 出图
     def on_start(self, *_a) -> None:
@@ -254,6 +279,10 @@ class MainView(BoxLayout):
             zpath = storage.zip_outputs(out_root, dest)
             self.state["zip"] = zpath
             self.write("已打包: " + (zpath or "没有 PNG"))
+            uri = self.state.get("out_uri", "")
+            if uri:
+                msg = androidfs.export_tree(uri, out_root)
+                self.write(msg or "写入所选目录失败")
         threading.Thread(target=job, daemon=True).start()
 
     def on_share(self, *_a) -> None:

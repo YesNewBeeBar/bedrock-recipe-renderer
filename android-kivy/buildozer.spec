@@ -20,6 +20,8 @@ android.archs = arm64-v8a
 android.permissions = INTERNET, ACCESS_NETWORK_STATE
 android.allow_backup = True
 android.enable_androidx = True
+# SAF 目录读写（DocumentFile）需要它
+android.gradle_dependencies = androidx.documentfile:documentfile:1.0.1
 android.accept_sdk_license = True
 android.logcat_filters = *:S python:D
 
