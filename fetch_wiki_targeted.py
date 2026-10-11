@@ -87,6 +87,10 @@ def main() -> int:
             img = None
         if img is not None:
             ok += 1
+            for f in os.listdir(os.path.join(OUT, "wiki_cache")):   # 图标只几 KB
+                fp = os.path.join(OUT, "wiki_cache", f)
+                if f.startswith("minecraft__") and f.endswith(".png")                         and os.path.getsize(fp) > 64 * 1024:
+                    os.remove(fp); ok -= 1; miss += 1
         else:
             miss += 1
         time.sleep(0.25)

@@ -339,6 +339,7 @@ class Assets:
     geometries: dict = field(default_factory=dict)
     tag_items: dict = field(default_factory=dict)     # "namespace:tag" -> a member item id
     tag_members: dict = field(default_factory=dict)   # "namespace:tag" -> [all known members]
+    kinds: dict = field(default_factory=dict)         # id -> "item" | "block"
 
     def __post_init__(self):
         self.rp_roots = []
@@ -400,6 +401,21 @@ class Assets:
             if isinstance(bj, dict):
                 bj = {k: v for k, v in bj.items() if k != "format_version"}
                 self.blocks.update(bj)
+        # 原版物品/方块定义表（fetch_vanilla_kinds.py 生成，含个别手工修正）
+        for base in (self.bundle_root, self.tool_root,
+                     os.path.dirname(os.path.abspath(__file__)),
+                     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))):
+            if not base:
+                continue
+            fp = os.path.join(base, "vanilla_kinds.json")
+            if os.path.isfile(fp):
+                try:
+                    data = jsonc.load(fp)
+                except Exception:
+                    data = None
+                if isinstance(data, dict):
+                    self.kinds.update(data)
+                break
         if self.bp_dirs:
             self._load_bp_icons()
             self._load_block_models()
@@ -492,6 +508,8 @@ class Assets:
                         icon = icon.get("texture")
                     if ident and icon:
                         self.bp_icons[ident] = icon
+                    if ident:
+                        self.kinds[ident] = "item"
                     # item tags: remember one member per tag so a shapeless recipe
                     # written as {"tag": "..."} has something to draw
                     tags = comps.get("minecraft:tags")
@@ -535,6 +553,22 @@ class Assets:
                         out.append(key)
         return out[:limit]
 
+    def kind_of(self, name: str) -> str:
+        """物品还是方块？附加包定义 minecraft:item / minecraft:block 优先，
+        其次原版定义表，最后看贴图归属（item_texture=物品 / terrain、blocks=方块）。
+        物品一律画物品图标，绝不画立方体；方块画立方体。"""
+        key = name.split(":")[-1]
+        for cand in (name, "minecraft:" + key, key):
+            kind = self.kinds.get(cand)
+            if kind:
+                return kind
+        if name in self.item_texture or key in self.item_texture:
+            return "item"
+        if (name in self.blocks or key in self.blocks
+                or name in self.terrain_texture or key in self.terrain_texture):
+            return "block"
+        return ""
+
     def _load_block_models(self):
         """BP block definitions: ``minecraft:geometry`` + ``minecraft:material_instances``."""
         for bp in self.bp_dirs:
@@ -548,6 +582,7 @@ class Assets:
                     ident = (body.get("description") or {}).get("identifier")
                     if not ident:
                         continue
+                    self.kinds[ident] = "block"
                     comps = body.get("components") or {}
                     geometry = comps.get("minecraft:geometry")
                     if isinstance(geometry, dict):
@@ -905,9 +940,11 @@ class Assets:
         #    对**任何**物品都试一次：抓取端已经只认 "Invicon X[_BE].png"（不再回退到
         #    文章插图），所以这里拿到的要么是游戏物品栏图标，要么就是没有。
         #    离线时 offline=True → 只查本地缓存，不会联网。
-        if self.wiki_icons != "never":
+        kind = self.kind_of(name)
+        # 方块一律走立方体渲染；物品才用物品栏图标，且绝不画成立方体
+        if self.wiki_icons != "never" and kind != "block":
             if name not in self.item_texture or _is_wiki_block(name) \
-                    or name in WIKI_SPECIAL:
+                    or name in WIKI_SPECIAL or kind == "item":
                 img = wiki.fetch_icon(norm, self.wiki_root or ".", self.wiki_language,
                                       offline=self.local_only)
                 if img is not None:
@@ -949,7 +986,13 @@ class Assets:
                 return Icon(ident, "block", faces=self._face_map(faces),
                             note="behaviour pack material_instances")
 
-        # 1. built-in shapes for vanilla blocks whose model lives inside the game
+        # 1. built-in shapes for vanilla blocks whose model lives inside the game.
+        #    但**有方块贴图的**不该走这里：游戏里信标/仙人掌/TNT 在物品栏就是
+        #    普通立方体，手写模型反而画得不像（用户反馈过）。
+        _probe_faces = self._block_faces(
+            name, self.blocks.get(norm) or self.blocks.get(name)
+            or self.blocks.get(f"minecraft:{name}"))
+
         #    (slab / stairs / torch / flowers / fences / ...) - preferred over a flat
         #    item sprite, because the game renders the block model as the item icon
         shape = shapes.shape_name(name)
@@ -982,7 +1025,7 @@ class Assets:
                     return Icon(ident, "item", item=img)
         # 3. block faces from blocks.json / terrain_texture
         block_entry = self.blocks.get(norm) or self.blocks.get(name) or self.blocks.get(f"minecraft:{name}")
-        faces = self._block_faces(name, block_entry)
+        faces = self._block_faces(name, block_entry) if kind != "item" else {}
         if faces:
             if name == "dried_ghast":
                 # offline fallback for the hand-written dried ghast model

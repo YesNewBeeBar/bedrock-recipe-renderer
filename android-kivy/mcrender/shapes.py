@@ -337,6 +337,9 @@ def dried_ghast(images: dict):
 
 def shape_name(name: str) -> str | None:
     """Block short name -> built-in shape name (or None)."""
+    # 满方块直接画标准立方体更接近游戏（用户反馈：信标/仙人掌的手写模型不像）
+    if name in ("beacon", "cactus"):
+        return None
     if name in EXACT:
         return EXACT[name]
     if name in CROSS_PLANTS:
