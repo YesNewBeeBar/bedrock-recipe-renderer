@@ -506,7 +506,7 @@ class Assets:
                     icon = comps.get("minecraft:icon")
                     if isinstance(icon, dict):
                         icon = icon.get("texture")
-                    if ident and icon:
+                    if ident:
                         self.bp_icons[ident] = icon
                     if ident:
                         self.kinds[ident] = "item"
@@ -564,10 +564,12 @@ class Assets:
                 return kind
         if name in self.item_texture or key in self.item_texture:
             return "item"
-        if (name in self.blocks or key in self.blocks
-                or name in self.terrain_texture or key in self.terrain_texture):
+        # 只认 blocks.json（方块**定义**表）。不用 terrain_texture：
+        # 不少附加包把物品也注册进地形图集，用它会误判成方块（用户反馈过）。
+        if name in self.blocks or key in self.blocks:
             return "block"
-        return ""
+        # 判不出来的按**物品**处理：乱画成立方体比缺图更糟（用户多次反馈过）
+        return "item"
 
     def _load_block_models(self):
         """BP block definitions: ``minecraft:geometry`` + ``minecraft:material_instances``."""
@@ -941,8 +943,9 @@ class Assets:
         #    文章插图），所以这里拿到的要么是游戏物品栏图标，要么就是没有。
         #    离线时 offline=True → 只查本地缓存，不会联网。
         kind = self.kind_of(name)
-        # 方块一律走立方体渲染；物品才用物品栏图标，且绝不画成立方体
-        if self.wiki_icons != "never" and kind != "block":
+        # 物品和方块**都先试维基物品栏图标** —— 游戏里信标在物品栏就是那张带光柱的图标，
+        # 普通立方体反而不对（用户指出过）。拿不到才退回方块立方体。
+        if self.wiki_icons != "never":
             if name not in self.item_texture or _is_wiki_block(name) \
                     or name in WIKI_SPECIAL or kind == "item":
                 img = wiki.fetch_icon(norm, self.wiki_root or ".", self.wiki_language,
@@ -1002,7 +1005,7 @@ class Assets:
             shape_faces = self._block_faces(name, block_entry)
             if shape_faces:
                 geo = shapes.build_geometry(shape, None)
-                if geo is not None:
+                if geo is not None and kind != "item":
                     return Icon(ident, "model", faces=self._face_map(shape_faces), geometry=geo,
                                 note=f"built-in shape {shape}")
 
@@ -1043,16 +1046,19 @@ class Assets:
                 img = faces.get("side") or faces.get("up") or faces.get("north")
                 if img is not None:
                     return Icon(ident, "item", item=img, note="flat block sprite")
-            return Icon(ident, "block", faces=faces)
+            if kind != "item":
+                return Icon(ident, "block", faces=faces)
         # 3. direct files (also tried for every alias/variant spelling)
         for cand in [name] + self._extra_candidates(name):
-            for sub, kind in (("items", "item"), ("blocks", "block")):
+            for sub, sub_kind in (("items", "item"), ("blocks", "block")):
                 p = self.find_file(f"textures/{sub}/{cand}")
                 if p:
                     img = self._image(p)
                     if img is None:
                         continue
-                    if kind == "item" or cand in FLAT_BLOCKS:
+                    if sub_kind == "item" or cand in FLAT_BLOCKS or kind == "item":
+                        return Icon(ident, "item", item=img)
+                    if kind == "item":
                         return Icon(ident, "item", item=img)
                     return Icon(ident, "block", faces={k: img for k in ("up", "down", "side")})
         # 4. last resort: the game sometimes suffixes an item's texture file
