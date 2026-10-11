@@ -1,0 +1,12 @@
+{
+  "_comment": "small GUI marks, 1 char per GUI unit. 'shapeless' = the shuffle symbol Bedrock draws at the bottom-right of the crafting panel for shapeless recipes (recovered from the reference screenshot).",
+  "shapeless": [
+    "###....####",
+    "####..#####",
+    "...#.##..#.",
+    "....##.....",
+    "...##.#..#.",
+    "####..#####",
+    "###....####"
+  ]
+}

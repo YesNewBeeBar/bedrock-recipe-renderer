@@ -21,3 +21,14 @@ __pycache__/
 *.bak
 *.tmp
 *~
+
+# Android 移植临时产物（不要提交）
+android-kivy/.buildozer/
+android-kivy/bin/
+android-kivy/.venv-buildozer/
+android-kivy/build.log
+android/build/
+android/logs/
+android/.venv*
+.venv*/
+*.apk

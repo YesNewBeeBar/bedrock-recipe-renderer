@@ -1,0 +1,48 @@
+[tool.briefcase]
+project_name = "bedrock-recipe-renderer"
+bundle = "com.yesnewbeebar"
+version = "1.0.0"
+url = "https://github.com/YesNewBeeBar/bedrock-recipe-renderer"
+license.file = "LICENSE"
+author = "NewBeeBar"
+author_email = "kubitnb@qq.com"
+
+# 依赖：Pillow 是 C 扩展，必须能解析到 Android 轮子（见 PORTING.md 第六节）
+# 其它全是标准库，核心逻辑不需要第三方依赖。
+requires = [
+    "pillow",
+    "certifi",
+]
+
+[tool.briefcase.app.bedrock_recipe_renderer]
+formal_name = "合成表生成器"
+description = "把基岩版附加包配方渲染成游戏内界面 PNG"
+long_description = """读取附加包的配方 JSON / .mcaddon / .zip，输出与游戏内一致的
+合成台、熔炉、切石机、锻造台、酿造台界面图片。核心渲染逻辑与桌面版完全一致。"""
+icon = "src/bedrock_recipe_renderer/resources/icon"
+sources = [
+    "src/bedrock_recipe_renderer",
+]
+test_sources = [
+    "tests",
+]
+
+[tool.briefcase.app.bedrock_recipe_renderer.android]
+# 说明：INTERNET 与 ACCESS_NETWORK_STATE 由 Briefcase **自动授予**，无需声明。
+# 导出走 SAF（系统选择器），所以也不需要 WRITE_EXTERNAL_STORAGE。
+# 跨平台权限写法示例（需要时）：permission.photo_library = "导出图片到相册"
+# 完整 Android 权限写法：   permission."android.permission.VIBRATE" = true
+#
+# 注意：Android 的 minSdk/targetSdk 由 Briefcase 的 python-android 支持包决定，
+# 不要在 pyproject.toml 里写 min_sdk_version / target_sdk_version（会被忽略）。
+android_manifest_application_attrs_extra_content = """android:requestLegacyExternalStorage="true\""""
+
+[tool.briefcase.app.bedrock_recipe_renderer.iOS]
+# 顺手留个 iOS 配置：同一份 Toga 界面可直接用
+min_os_version = "15.0"
+
+[tool.briefcase.app.bedrock_recipe_renderer.macOS]
+requires = ["pillow", "certifi"]
+
+[tool.briefcase.app.bedrock_recipe_renderer.windows]
+requires = ["pillow", "certifi"]
