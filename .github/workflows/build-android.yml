@@ -52,7 +52,9 @@ jobs:
 
       - name: Build debug APK
         working-directory: android-kivy
+        shell: bash
         run: |
+          set -o pipefail                     # 否则 tee 会顶替 buildozer 的退出码
           yes | buildozer -v android debug 2>&1 | tee build.log
 
       - name: Upload APK
@@ -60,7 +62,7 @@ jobs:
         with:
           name: bedrock-recipe-renderer-apk
           path: android-kivy/bin/*.apk
-          if-no-files-found: warn
+          if-no-files-found: error   # 没出 APK 就是失败，别藏着
 
       - name: Upload build log (失败时排查用)
         if: always()
