@@ -57,6 +57,7 @@ class MainView(BoxLayout):
         super().__init__(orientation="vertical", padding=dp(6), spacing=dp(4), **kw)
         self.state = {
             "bp": "", "rp": "", "vanilla": "", "out": "", "files": [],
+            "unpack_root": "",
             # 默认离线：日志证明 offline=False 时会去联网，手机上每条都卡到超时
             "offline": True, "zip": "", "scale": "4", "layout": "modern",
         }
@@ -285,6 +286,7 @@ class MainView(BoxLayout):
             bps = [root]
         self._diag(f"解包 {os.path.basename(archive)}（{size_mb:.1f} MB）"
                    f"→ 落到 {root}，文件 {total} 个，BP {len(bps)} 个，RP {len(rps)} 个")
+        self.state["unpack_root"] = root          # 兜底：让核心自己去旁边找 textures/
         if rps and not self.state.get("rp"):
             self.state["rp"] = rps[0]
             self._msg("已自动使用包内资源包 RP：" + os.path.basename(rps[0]))
@@ -337,7 +339,8 @@ class MainView(BoxLayout):
                                             if os.path.isdir(bundled_vanilla) else None)
             self._diag(f"原版素材: {vanilla_dir or '（无）'}")
             assets = Assets(
-                bp_dir=st["bp"] or None, rp_dir=st["rp"] or None,
+                bp_dir=st["bp"] or st.get("unpack_root") or None,
+                rp_dir=st["rp"] or st.get("unpack_root") or None,
                 vanilla_dir=vanilla_dir,
                 # 离线时连 Wiki 图标也别去查：手机上每次查询都会卡到超时
                 wiki_root=p_paths.tool_root(),
