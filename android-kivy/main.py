@@ -49,7 +49,7 @@ from platform_layer import browser as browser_mod           # noqa: E402
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.1.1"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.1.2"          # 界面会显示，用来确认手机上跑的是哪一版
 
 
 class MainView(BoxLayout):
@@ -339,12 +339,14 @@ class MainView(BoxLayout):
                                             if os.path.isdir(bundled_vanilla) else None)
             self._diag(f"原版素材: {vanilla_dir or '（无）'}")
             assets = Assets(
-                bp_dir=st["bp"] or st.get("unpack_root") or None,
-                rp_dir=st["rp"] or st.get("unpack_root") or None,
+                bp_dir=st["bp"] or None,
+                rp_dir=st["rp"] or None,
                 vanilla_dir=vanilla_dir,
-                # 离线时连 Wiki 图标也别去查：手机上每次查询都会卡到超时
+                # 与桌面端保持一致：图标模式恒为 auto。
+                # 离线时由 local_only=True 保证"只读本地缓存、不联网"，
+                # 关掉 auto 会让药水等只能用自绘颜色（用户反馈过）。
                 wiki_root=p_paths.tool_root(),
-                wiki_icons="off" if offline else "auto", wiki_language="en",
+                wiki_icons="auto", wiki_language="en",
                 vanilla_download=not offline, local_only=offline,
                 tool_root=p_paths.tool_root(), bundle_root=p_paths.tool_root())
             renderer = Renderer(assets, scale=int(st.get("scale", 4)),
