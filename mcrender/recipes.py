@@ -28,6 +28,16 @@ def _item(value):
     if value is None:
         return None, 1
     if isinstance(value, str):
+        # 数据值有三种写法（用户反馈）：
+        #   "minecraft:dye:2"                → 冒号型
+        #   "minecraft:potion_type:mundane"  → 变体名型
+        #   {"item": "minecraft:potion", "data": 4} → 字段型（下面处理）
+        parts = value.split(":")
+        if len(parts) >= 3:
+            ns, base, tail = parts[0], parts[1], ":".join(parts[2:])
+            if base == "potion_type":
+                return f"minecraft:potion#{tail}", 1
+            return f"{ns}:{base}#{tail}", 1
         return value, 1
     if isinstance(value, list):
         for v in value:
@@ -43,7 +53,7 @@ def _item(value):
                     ident = f"{ident}#{int(data)}"
                 except (TypeError, ValueError):
                     pass
-            elif "potion_type" in value and "#" not in ident:
+            elif value.get("potion_type") and "#" not in ident:
                 ident = f"{ident}#{value['potion_type']}"
             return ident, int(value.get("count", 1) or 1)
         if "tag" in value:

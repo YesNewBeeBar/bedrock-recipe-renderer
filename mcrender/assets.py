@@ -312,6 +312,17 @@ for _suffix in WIKI_SUFFIXES:
     WIKI_SPECIAL.add(_suffix)          # matched by suffix below
 
 
+# 桶的 data 值 → item_texture 里的键（顺序与列表不同，必须显式映射）
+# 桶的 data 值 → 贴图文件（顺序与 item_texture 列表不同，必须显式映射）。
+# 用户实测：空 0 / 奶 1 / 水 8 / 岩浆 10 / 细雪 11。
+BUCKET_BY_DATA = {
+    0: "bucket_empty", 1: "bucket_milk", 2: "bucket_water", 3: "bucket_cod",
+    4: "bucket_salmon", 5: "bucket_tropical", 6: "bucket_pufferfish",
+    7: "bucket_axolotl", 8: "bucket_water", 9: "bucket_tadpole",
+    10: "bucket_lava", 11: "bucket_powder_snow",
+}
+
+
 def _is_wiki_block(name: str) -> bool:
     if name in WIKI_SPECIAL or name in WIKI_PLANTS:
         return True
@@ -577,6 +588,22 @@ class Assets:
                         seen.add(key)
                         out.append(key)
         return out[:limit]
+
+    def pinned_icon(self, name: str):
+        """人工钉死的物品图标（wiki_pinned/）：优先级最高，联网抓取也覆盖不了。"""
+        key = name.split(":")[-1]
+        for base in (self.bundle_root, self.tool_root,
+                     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     os.path.dirname(os.path.abspath(__file__))):
+            if not base:
+                continue
+            for cand in (key, name.replace(":", "__")):
+                fp = os.path.join(base, "wiki_pinned", f"minecraft__{cand}.png")
+                if os.path.isfile(fp):
+                    img = self._image(fp)
+                    if img is not None:
+                        return img
+        return None
 
     def kind_of(self, name: str) -> str:
         """物品还是方块？附加包定义 minecraft:item / minecraft:block 优先，
@@ -968,6 +995,17 @@ class Assets:
         #    文章插图），所以这里拿到的要么是游戏物品栏图标，要么就是没有。
         #    离线时 offline=True → 只查本地缓存，不会联网。
         kind = self.kind_of(name)
+        # 1c. 桶：data 值走显式映射（列表下标与 data 值并不一致）
+        if name == "bucket" and variant is not None and str(variant).isdigit():
+            fname = BUCKET_BY_DATA.get(int(variant))
+            if fname:
+                img = self._image(self.find_file(f"textures/items/{fname}"))
+                if img is not None:
+                    return Icon(ident, "item", item=img, note=f"bucket data {variant}")
+
+        pinned = self.pinned_icon(name)
+        if pinned is not None:
+            return Icon(ident, "item", item=pinned, smooth=True, note="pinned icon")
         # 物品和方块**都先试维基物品栏图标** —— 游戏里信标在物品栏就是那张带光柱的图标，
         # 普通立方体反而不对（用户指出过）。拿不到才退回方块立方体。
         if self.wiki_icons != "never":
