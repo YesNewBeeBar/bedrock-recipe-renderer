@@ -78,7 +78,7 @@ from platform_layer import remember
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.2.6"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.2.7"          # 界面会显示，用来确认手机上跑的是哪一版
 
 
 # ---------------------------------------------------------------- 外观（简洁现代）
@@ -675,15 +675,8 @@ class MainView(BoxLayout):
 class BRRApp(App):
     def build(self):
         _boot("3 进入 build()")
-        try:
-            used = remember.merge_into(self.state)
-            if used:
-                self.state.setdefault("_restored", used)
-                self._diag("已恢复上次的选择: " + ", ".join(used))   # 出图目录/BP/RP 等
-        except Exception:
-            pass
         self.title = "合成表生成器"
-        # 先装崩溃日志：这样连"界面构建阶段"的异常也能留下记录（之前闪退无日志）
+        # 先装崩溃日志：连"界面构建阶段"的异常也能留下记录
         try:
             crashlog.install(None)
         except Exception:
@@ -707,21 +700,31 @@ class BRRApp(App):
         except Exception:
             pass
         _boot("5 界面构建完成")
-        dark0 = initial_dark(self.state)          # 首次跟随设备，之后用记忆
-        if not self.state.get("_theme_saved"):
-            try:
-                remember.save(self.state)
-                self.state["_theme_saved"] = True
-            except Exception:
-                pass
+
+        # 注意：state 属于 MainView（不是 App）—— 之前写成 self.state 直接崩在启动
+        st = getattr(view, "state", None)
+        if not isinstance(st, dict):
+            st = {}
+            view.state = st
+        try:
+            used = remember.merge_into(st)
+            if used:
+                self._diag("已恢复上次的选择: " + ", ".join(used))
+        except Exception as exc:
+            self._diag("!! 恢复记忆失败: " + repr(exc))
+
+        dark0 = initial_dark(st)                    # 首次跟随设备，之后用记忆
+        try:
+            remember.save(st)
+        except Exception:
+            pass
 
         def _paint(_dt=None):
             try:
                 apply_theme(view, dark=dark0)
-            except Exception as exc:              # 不再静默：写进诊断日志
+            except Exception as exc:
                 self._diag("!! 主题应用失败: " + repr(exc))
 
-        # 控件是边建边出现的 —— 延后多刷几次，保证都覆盖到
         for _d in (0.05, 0.3, 0.9):
             Clock.schedule_once(_paint, _d)
         _boot("6 build() 返回，界面即将显示")
