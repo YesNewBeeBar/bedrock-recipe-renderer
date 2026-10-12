@@ -46,10 +46,11 @@ from kivy.uix.switch import Switch                          # noqa: E402
 from kivy.uix.textinput import TextInput                    # noqa: E402
 
 from platform_layer import browser as browser_mod           # noqa: E402
+from platform_layer import remember
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.1.6"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.1.7"          # 界面会显示，用来确认手机上跑的是哪一版
 
 
 class MainView(BoxLayout):
