@@ -20,6 +20,8 @@ echo [1/2] building GUI exe ...
   --add-data "mcrender/glyphs.json;mcrender" ^
   --add-data "mcrender/sprites.json;mcrender" ^
   --add-data "assets;assets" ^
+  --add-data "tags_be.json;." ^
+  --add-data "vanilla_kinds.json;." ^
   --add-data "vanilla_cache;vanilla_cache" ^
   --add-data "wiki_cache;wiki_cache" ^
   --exclude-module matplotlib --exclude-module numpy --exclude-module pandas ^
@@ -32,6 +34,8 @@ echo [2/2] building CLI exe ...
   --add-data "mcrender/glyphs.json;mcrender" ^
   --add-data "mcrender/sprites.json;mcrender" ^
   --add-data "assets;assets" ^
+  --add-data "tags_be.json;." ^
+  --add-data "vanilla_kinds.json;." ^
   --add-data "vanilla_cache;vanilla_cache" ^
   --add-data "wiki_cache;wiki_cache" ^
   --exclude-module matplotlib --exclude-module numpy --exclude-module pandas ^
