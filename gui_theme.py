@@ -86,7 +86,29 @@ def apply(root, dark: bool, skip=()) -> dict:
         style.configure("TEntry", fieldbackground=c["panel"], foreground=c["fg"])
         style.configure("TCombobox", fieldbackground=c["panel"], foreground=c["fg"])
         style.configure("TCheckbutton", background=c["bg"], foreground=c["fg"])
-        style.map("TCombobox", fieldbackground=[("readonly", c["panel"])])
+        # ttk 只看 state map —— 不写这些，输入框/下拉框永远是系统白
+        for name in ("TEntry", "TSpinbox"):
+            style.map(name, fieldbackground=[("!disabled", c["panel"])],
+                      foreground=[("!disabled", c["fg"])],
+                      background=[("!disabled", c["panel"])])
+        style.map("TCombobox",
+                  fieldbackground=[("readonly", c["panel"]), ("!disabled", c["panel"])],
+                  foreground=[("readonly", c["fg"]), ("!disabled", c["fg"])],
+                  background=[("readonly", c["panel"]), ("!disabled", c["panel"])],
+                  arrowcolor=[("!disabled", c["fg"])],
+                  selectbackground=[("readonly", c["panel"])],
+                  selectforeground=[("readonly", c["fg"])])
+        style.map("TCheckbutton",
+                  background=[("!disabled", c["bg"])],
+                  foreground=[("!disabled", c["fg"])],
+                  indicatorbackground=[("!disabled", c["panel"])])
+        style.map("TButton", background=[("!disabled", c["panel"])],
+                  foreground=[("!disabled", c["fg"])])
+        # 下拉列表本身
+        root.option_add("*TCombobox*Listbox.background", c["panel"])
+        root.option_add("*TCombobox*Listbox.foreground", c["fg"])
+        root.option_add("*TCombobox*Listbox.selectBackground", c["accent"])
+        root.option_add("*TCombobox*Listbox.selectForeground", c["accent_fg"])
     except Exception:
         pass
 
@@ -170,48 +192,44 @@ def round_rect(canvas, x1, y1, x2, y2, r, fill=None, outline=None, width=1, dash
 
 
 def pill(parent, text, command, dark=False, kind="ghost"):
-    """胶囊按钮：kind=primary(蓝底白字) / ghost(面板底描边)。"""
+    """胶囊按钮：kind=primary(蓝底白字) / ghost(面板底描边)。
+
+    颜色一律以控件自身的 _dark 为准（**不靠闭包**）—— 否则切换主题后会残留旧色。
+    """
     import tkinter as tk
-    c = palette(dark)
-    bg = c["accent"] if kind == "primary" else c["panel"]
-    fg = c["accent_fg"] if kind == "primary" else c["fg"]
-    cv = tk.Canvas(parent, height=34, highlightthickness=0, bd=0, bg=c["bg"])
-    state = {"text": text}
+    cv = tk.Canvas(parent, height=34, highlightthickness=0, bd=0,
+                   bg=palette(dark)["bg"])
+    cv._dark = bool(dark)
+    cv._text = text
+    cv._kind = kind
 
     def redraw(_e=None):
+        c = palette(cv._dark)
+        bg = c["accent"] if cv._kind == "primary" else c["panel"]
+        fg = c["accent_fg"] if cv._kind == "primary" else c["fg"]
+        cv.configure(bg=c["bg"])
         cv.delete("all")
         w = cv.winfo_width() or 120
         round_rect(cv, 1, 1, w - 1, 33, 17, fill=bg,
-                   outline=None if kind == "primary" else c["border"])
-        cv.create_text(w / 2, 17, text=state["text"], fill=fg,
+                   outline=None if cv._kind == "primary" else c["border"])
+        cv.create_text(w / 2, 17, text=cv._text, fill=fg,
                        font=("Microsoft YaHei UI", 10))
 
     cv.bind("<Configure>", redraw)
     cv.bind("<Button-1>", lambda _e: command())
     cv.bind("<Enter>", lambda _e: cv.configure(cursor="hand2"))
-    redraw()
-    def set_theme(is_dark: bool):
-        cc = palette(is_dark)
-        cv.configure(bg=cc["bg"])
-        nonlocal_bg[0] = cc["accent"] if kind == "primary" else cc["panel"]
-        nonlocal_fg[0] = cc["accent_fg"] if kind == "primary" else cc["fg"]
+
+    def set_text(t):
+        cv._text = t
         redraw()
 
-    nonlocal_bg, nonlocal_fg = [bg], [fg]
+    def set_theme(is_dark):
+        cv._dark = bool(is_dark)
+        redraw()
 
-    def redraw2(_e=None):
-        cv.delete("all")
-        w = cv.winfo_width() or 120
-        round_rect(cv, 1, 1, w - 1, 33, 17, fill=nonlocal_bg[0],
-                   outline=None if kind == "primary" else palette(dark)["border"])
-        cv.create_text(w / 2, 17, text=state["text"], fill=nonlocal_fg[0],
-                       font=("Microsoft YaHei UI", 10))
-
-    cv.unbind("<Configure>")
-    cv.bind("<Configure>", redraw2)
-    cv._set_text = lambda t: (state.update(text=t), redraw2())
+    cv._set_text = set_text
     cv._set_theme = set_theme
-    redraw2()
+    redraw()
     return cv
 
 
