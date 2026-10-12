@@ -49,7 +49,7 @@ from platform_layer import browser as browser_mod           # noqa: E402
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.1.0"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.1.1"          # 界面会显示，用来确认手机上跑的是哪一版
 
 
 class MainView(BoxLayout):
