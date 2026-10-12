@@ -9,6 +9,33 @@ Android 的 SAF 选择器在部分 ROM（realme/OPPO 等）会黑屏、返回键
 """
 from __future__ import annotations
 
+import os as _os_boot
+import traceback as _tb_boot
+
+
+def _boot(step: str) -> None:
+    """开机路标：把"走到哪一步"写进 crash.log。
+
+    闪退且无日志时，这几行是唯一能定位的线索（之前完全没有）。
+    """
+    for path in ("/storage/emulated/0/Android/data/com.yesnewbeebar."
+                 "bedrockreciperenderer/files/crash.log",
+                 _os_boot.path.join(_os_boot.path.dirname(
+                     _os_boot.path.abspath(__file__)), "crash.log")):
+        try:
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write("[boot] " + step + chr(10))
+            return
+        except Exception:
+            continue
+    try:
+        _tb_boot.print_exc()
+    except Exception:
+        pass
+
+
+_boot("1 开始导入 main.py")
+
 import os
 import threading
 import traceback
@@ -33,6 +60,7 @@ def _install_ui_font() -> str:
 
 
 UI_FONT = _install_ui_font()
+_boot("2 字体与 Kivy 导入完成")
 
 from kivy.app import App                                    # noqa: E402
 from kivy.clock import Clock                                # noqa: E402
@@ -50,7 +78,7 @@ from platform_layer import remember
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.2.5"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.2.6"          # 界面会显示，用来确认手机上跑的是哪一版
 
 
 # ---------------------------------------------------------------- 外观（简洁现代）
@@ -646,6 +674,7 @@ class MainView(BoxLayout):
 
 class BRRApp(App):
     def build(self):
+        _boot("3 进入 build()")
         try:
             used = remember.merge_into(self.state)
             if used:
@@ -659,6 +688,7 @@ class BRRApp(App):
             crashlog.install(None)
         except Exception:
             pass
+        _boot("4 开始构建界面")
         try:
             view = MainView()
         except Exception as exc:                    # 界面构建失败也不闪退
@@ -676,6 +706,7 @@ class BRRApp(App):
             crashlog.install(view)
         except Exception:
             pass
+        _boot("5 界面构建完成")
         dark0 = initial_dark(self.state)          # 首次跟随设备，之后用记忆
         if not self.state.get("_theme_saved"):
             try:
@@ -693,6 +724,7 @@ class BRRApp(App):
         # 控件是边建边出现的 —— 延后多刷几次，保证都覆盖到
         for _d in (0.05, 0.3, 0.9):
             Clock.schedule_once(_paint, _d)
+        _boot("6 build() 返回，界面即将显示")
         return view
 
 
