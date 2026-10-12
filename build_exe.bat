@@ -21,6 +21,7 @@ echo [1/2] building GUI exe ...
   --add-data "mcrender/sprites.json;mcrender" ^
   --add-data "assets;assets" ^
   --add-data "tags_be.json;." ^
+  --add-data "wiki_pinned;wiki_pinned" ^
   --add-data "vanilla_kinds.json;." ^
   --add-data "vanilla_cache;vanilla_cache" ^
   --add-data "wiki_cache;wiki_cache" ^
@@ -35,6 +36,7 @@ echo [2/2] building CLI exe ...
   --add-data "mcrender/sprites.json;mcrender" ^
   --add-data "assets;assets" ^
   --add-data "tags_be.json;." ^
+  --add-data "wiki_pinned;wiki_pinned" ^
   --add-data "vanilla_kinds.json;." ^
   --add-data "vanilla_cache;vanilla_cache" ^
   --add-data "wiki_cache;wiki_cache" ^
