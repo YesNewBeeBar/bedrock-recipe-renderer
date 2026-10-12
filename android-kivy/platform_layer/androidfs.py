@@ -296,6 +296,12 @@ def pick_directory(title: str = "选择文件夹") -> str:
 def _finish_async(flag, holder, timeout, on_done):
     def _worker():
         flag.wait(timeout)
+        try:
+            if holder.get("log"):
+                from . import crashlog
+                crashlog._write_file(str(holder["log"]) + chr(10))
+        except Exception:
+            pass
         value = holder.get("value")
         try:
             from kivy.clock import Clock
@@ -325,9 +331,17 @@ def pick_tree_cb(on_done, title: str = "选择文件夹") -> None:
                     j["PythonActivity"].mActivity.getContentResolver()                         .takePersistableUriPermission(uri, 0x00000001 | 0x00000002)
                 except Exception:
                     pass
-                holder["value"] = tree_to_path(str(uri))
+                # 必须用 Java 的 toString()：pyjnius 的 str(Uri) 不保证给 URI 字符串
+                try:
+                    raw = uri.toString()
+                except Exception:
+                    raw = str(uri)
+                holder["raw"] = raw
+                holder["value"] = tree_to_path(raw)
+                holder["log"] = f"目录选择: code={code} uri={raw} → {holder['value']!r}"
             else:
                 holder["value"] = ""
+                holder["log"] = f"目录选择: code={code} data={'有' if data is not None else '无'}"
         finally:
             flag.set()
 
