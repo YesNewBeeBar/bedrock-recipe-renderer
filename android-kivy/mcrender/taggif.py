@@ -46,7 +46,7 @@ def multi_tags(recipe, assets) -> list:
     return out
 
 
-def render_gif(renderer, recipe, target_png: str, max_frames: int = 8,
+def render_gif(renderer, recipe, target_png: str, max_frames: int = 16,
                duration: int = 600, log=None) -> str:
     """给 ``target_png`` 配一张同名 .gif；不需要时返回空串。"""
     assets = renderer.assets

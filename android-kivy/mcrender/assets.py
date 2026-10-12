@@ -340,6 +340,7 @@ class Assets:
     tag_items: dict = field(default_factory=dict)     # "namespace:tag" -> a member item id
     tag_members: dict = field(default_factory=dict)   # "namespace:tag" -> [all known members]
     kinds: dict = field(default_factory=dict)         # id -> "item" | "block"
+    tag_db: dict = field(default_factory=dict)      # 标签 -> 成员（维基数据）
 
     def __post_init__(self):
         self.rp_roots = []
@@ -401,6 +402,22 @@ class Assets:
             if isinstance(bj, dict):
                 bj = {k: v for k, v in bj.items() if k != "format_version"}
                 self.blocks.update(bj)
+        # 基岩版全部标签 → 成员（build_tag_db.py 从维基 Module:GameTag/RelOriBE 生成）
+        self.tag_db: dict = {}
+        for base in (self.bundle_root, self.tool_root,
+                     os.path.dirname(os.path.abspath(__file__)),
+                     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))):
+            if not base:
+                continue
+            fp = os.path.join(base, "tags_be.json")
+            if os.path.isfile(fp):
+                try:
+                    data = jsonc.load(fp)
+                except Exception:
+                    data = None
+                if isinstance(data, dict):
+                    self.tag_db = data
+                break
         # 原版物品/方块定义表（fetch_vanilla_kinds.py 生成，含个别手工修正）
         for base in (self.bundle_root, self.tool_root,
                      os.path.dirname(os.path.abspath(__file__)),
@@ -529,6 +546,14 @@ class Assets:
         """
         out: list = []
         seen = set()
+        # ① 维基标签库（最全，覆盖基岩版全部 116 个标签）
+        for cand in (tag, tag.split(":")[-1], "minecraft:" + tag.split(":")[-1]):
+            for member in (self.tag_db or {}).get(cand, []):
+                if member not in seen:
+                    seen.add(member)
+                    out.append(member)
+        if out:
+            return out[:limit]
         for cand in (tag, tag.split(":")[-1] if ":" in tag else tag,
                      "minecraft:" + tag.split(":")[-1]):
             for member in self.tag_members.get(cand, []):
