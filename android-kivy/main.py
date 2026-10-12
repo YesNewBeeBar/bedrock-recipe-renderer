@@ -50,7 +50,7 @@ from platform_layer import remember
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.2.4"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.2.5"          # 界面会显示，用来确认手机上跑的是哪一版
 
 
 # ---------------------------------------------------------------- 外观（简洁现代）
@@ -654,8 +654,28 @@ class BRRApp(App):
         except Exception:
             pass
         self.title = "合成表生成器"
-        view = MainView()
-        crashlog.install(view)
+        # 先装崩溃日志：这样连"界面构建阶段"的异常也能留下记录（之前闪退无日志）
+        try:
+            crashlog.install(None)
+        except Exception:
+            pass
+        try:
+            view = MainView()
+        except Exception as exc:                    # 界面构建失败也不闪退
+            import traceback as _tb
+            crashlog.report("界面构建", exc)
+            try:
+                crashlog._write_file("界面构建失败:" + chr(10) + _tb.format_exc())
+            except Exception:
+                pass
+            from kivy.uix.boxlayout import BoxLayout as _BL
+            from kivy.uix.label import Label as _L
+            view = _BL(orientation="vertical", padding=dp(16))
+            view.add_widget(_L(text="界面构建失败，已写入 crash.log" + chr(10) + repr(exc)))
+        try:
+            crashlog.install(view)
+        except Exception:
+            pass
         dark0 = initial_dark(self.state)          # 首次跟随设备，之后用记忆
         if not self.state.get("_theme_saved"):
             try:
