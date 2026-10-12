@@ -14,6 +14,7 @@ cp -f "$SRC/main.py" .
 # 物品/方块判定表（核心用它区分 item / block）
 [ -f "$SRC/vanilla_kinds.json" ] && cp -f "$SRC/vanilla_kinds.json" .
 [ -f "$SRC/tags_be.json" ] && cp -f "$SRC/tags_be.json" .
+[ -d "$SRC/wiki_pinned" ] && { rm -rf wiki_pinned; cp -r "$SRC/wiki_pinned" .; }
 cp -f "$SRC/buildozer.spec" .
 mkdir -p platform_layer mcrender
 cp -f "$SRC/platform_layer/"*.py platform_layer/
