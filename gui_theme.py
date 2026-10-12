@@ -54,6 +54,15 @@ def palette(dark: bool) -> dict:
     return DARK if dark else LIGHT
 
 
+def apply_later(root, dark: bool, skip=(), times=(60, 400, 1200)) -> None:
+    """控件是边建边出现的，延后多刷几次，保证晚建的也被覆盖。"""
+    for delay in times:
+        try:
+            root.after(delay, lambda d=dark: apply(root, d, skip))
+        except Exception:
+            pass
+
+
 def apply(root, dark: bool, skip=()) -> dict:
     """遍历 tkinter 控件刷主题；skip 里的控件（如主按钮）保持自己的配色。"""
     import tkinter as tk
@@ -86,6 +95,23 @@ def apply(root, dark: bool, skip=()) -> dict:
         for child in w.winfo_children():
             for sub in walk(child):
                 yield sub
+
+    # ttk 的样式按**类名**生效；有些控件用的是自定义 style，这里统一兜一遍
+    try:
+        for name in ("TFrame", "TLabelframe", "TLabelframe.Label", "TLabel", "TButton",
+                     "TEntry", "TCombobox", "TCheckbutton", "TSpinbox", "TNotebook"):
+            style.configure(name, background=c["bg"], foreground=c["fg"])
+        style.configure("TCombobox", fieldbackground=c["panel"], foreground=c["fg"],
+                        selectbackground=c["panel"], selectforeground=c["fg"])
+        style.configure("TCheckbutton", background=c["bg"], foreground=c["fg"],
+                        indicatorbackground=c["panel"])
+        # 下拉弹窗（Listbox）也要跟着暗，否则点开还是一块白
+        root.option_add("*TCombobox*Listbox.background", c["panel"])
+        root.option_add("*TCombobox*Listbox.foreground", c["fg"])
+        root.option_add("*TCombobox*Listbox.selectBackground", c["accent"])
+        root.option_add("*TCombobox*Listbox.selectForeground", c["accent_fg"])
+    except Exception:
+        pass
 
     for w in walk(root):
         if w in skip:

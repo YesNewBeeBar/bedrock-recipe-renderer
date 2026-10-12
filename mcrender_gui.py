@@ -897,6 +897,7 @@ def run_gui(paths):
     state["dark"] = dark
     theme_btn.configure(command=lambda: _apply_theme(not state["dark"]))
     _apply_theme(dark)
+    gui_theme.apply_later(root, dark)      # 晚建的控件也要刷到
 
     root.mainloop()
 
