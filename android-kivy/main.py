@@ -78,7 +78,7 @@ from platform_layer import remember
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.2.7"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.2.8"          # 界面会显示，用来确认手机上跑的是哪一版
 
 
 # ---------------------------------------------------------------- 外观（简洁现代）
@@ -674,46 +674,65 @@ class MainView(BoxLayout):
 
 class BRRApp(App):
     def build(self):
+        """构建界面。**任何**异常都不允许让 App 起不来（崩溃就写日志 + 给最简界面）。"""
         _boot("3 进入 build()")
         self.title = "合成表生成器"
-        # 先装崩溃日志：连"界面构建阶段"的异常也能留下记录
         try:
-            crashlog.install(None)
+            crashlog.install(None)          # 先装日志，界面阶段的异常才有记录
         except Exception:
             pass
-        _boot("4 开始构建界面")
         try:
-            view = MainView()
-        except Exception as exc:                    # 界面构建失败也不闪退
+            return self._build_view()
+        except Exception as exc:
             import traceback as _tb
-            crashlog.report("界面构建", exc)
             try:
-                crashlog._write_file("界面构建失败:" + chr(10) + _tb.format_exc())
+                crashlog.report("build", exc)
+                crashlog._write_file("build 失败:" + chr(10) + _tb.format_exc())
             except Exception:
                 pass
+            _boot("!! build 异常: " + repr(exc))
             from kivy.uix.boxlayout import BoxLayout as _BL
             from kivy.uix.label import Label as _L
-            view = _BL(orientation="vertical", padding=dp(16))
-            view.add_widget(_L(text="界面构建失败，已写入 crash.log" + chr(10) + repr(exc)))
+            v = _BL(orientation="vertical", padding=dp(16))
+            v.add_widget(_L(text="启动失败，已写入 crash.log" + chr(10) + repr(exc)))
+            return v
+
+    def _build_view(self):
+        _boot("4 开始构建界面")
+        view = MainView()
         try:
             crashlog.install(view)
         except Exception:
             pass
         _boot("5 界面构建完成")
 
-        # 注意：state 属于 MainView（不是 App）—— 之前写成 self.state 直接崩在启动
+        # state / _diag 都属于 MainView（不是 App）—— 之前用 self.xxx 直接崩在启动
         st = getattr(view, "state", None)
         if not isinstance(st, dict):
             st = {}
             view.state = st
+
+        def vdiag(text):                    # 安全版 _diag：视图没有也不能崩
+            fn = getattr(view, "_diag", None)
+            if callable(fn):
+                try:
+                    fn(text)
+                    return
+                except Exception:
+                    pass
+            try:
+                crashlog._write_file(str(text) + chr(10))
+            except Exception:
+                pass
+
         try:
             used = remember.merge_into(st)
             if used:
-                self._diag("已恢复上次的选择: " + ", ".join(used))
+                vdiag("已恢复上次的选择: " + ", ".join(used))
         except Exception as exc:
-            self._diag("!! 恢复记忆失败: " + repr(exc))
+            vdiag("!! 恢复记忆失败: " + repr(exc))
 
-        dark0 = initial_dark(st)                    # 首次跟随设备，之后用记忆
+        dark0 = initial_dark(st)            # 首次跟随设备，之后一律用记忆
         try:
             remember.save(st)
         except Exception:
@@ -723,7 +742,7 @@ class BRRApp(App):
             try:
                 apply_theme(view, dark=dark0)
             except Exception as exc:
-                self._diag("!! 主题应用失败: " + repr(exc))
+                vdiag("!! 主题应用失败: " + repr(exc))
 
         for _d in (0.05, 0.3, 0.9):
             Clock.schedule_once(_paint, _d)
