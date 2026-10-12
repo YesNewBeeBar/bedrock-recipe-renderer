@@ -50,20 +50,20 @@ from platform_layer import remember
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.2.1"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.2.2"          # 界面会显示，用来确认手机上跑的是哪一版
 
 
 # ---------------------------------------------------------------- 外观（简洁现代）
 # 明/暗两套配色；按钮文字恒为白色（在强调色底上永远清晰）
 LIGHT = {
-    "bg": (0.97, 0.97, 0.98, 1), "fg": (0.13, 0.14, 0.17, 1),
-    "dim": (0.38, 0.40, 0.45, 1), "panel": (1, 1, 1, 1),
+    "bg": (0.97, 0.97, 0.98, 1), "fg": (0.05, 0.06, 0.08, 1),      # 标题：接近纯黑
+    "dim": (0.12, 0.13, 0.16, 1), "panel": (1, 1, 1, 1),           # 操作区文字：也要够黑
     "accent": (0.20, 0.51, 0.96, 1),
 }
 DARK = {
     "bg": (0.09, 0.10, 0.12, 1), "fg": (0.93, 0.94, 0.96, 1),
     "dim": (0.72, 0.74, 0.78, 1), "panel": (0.16, 0.17, 0.20, 1),
-    "accent": (0.26, 0.56, 0.98, 1),
+    "accent": (0.16, 0.38, 0.78, 1),        # 暗色模式：蓝再暗一点
 }
 THEME = {"dark": False}
 
@@ -166,8 +166,19 @@ class MainView(BoxLayout):
         from kivy.uix.switch import Switch
         # ---- 标题栏：标题 + 右上角暗色开关 ----
         top = self._row()
-        title = Label(text=f"合成表生成器 v{APP_VERSION}", bold=True,
-                      font_size=dp(15), halign="left", valign="middle")
+        try:                                  # 左上角图标（复用 App 自己的 icon.png）
+            from kivy.uix.image import Image
+            icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     "assets", "icon.png")
+            if not os.path.isfile(icon_path):
+                icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.png")
+            if os.path.isfile(icon_path):
+                top.add_widget(Image(source=icon_path, size_hint_x=None,
+                                     width=dp(28), allow_stretch=True, keep_ratio=True))
+        except Exception:
+            pass
+        title = Label(text="合成表生成器", bold=True,      # 不写版本号（版本进日志）
+                      font_size=dp(16), halign="left", valign="middle")
         title.bind(size=lambda w, _v: setattr(w, "text_size", (w.width, None)))
         title._is_title = True
         top.add_widget(title)
@@ -219,7 +230,7 @@ class MainView(BoxLayout):
         self.add_widget(self.status)
         self.log = TextInput(text="", readonly=True, font_size=dp(11))
         self.add_widget(self.log)
-        self._msg("就绪。")
+        self._msg(f"合成表生成器 v{APP_VERSION} 就绪。")
         self._msg("出图会直接写你选的目录（其下建「合成表」）。")
 
     def _set_dark(self, flag: bool) -> None:
