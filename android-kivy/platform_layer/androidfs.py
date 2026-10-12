@@ -170,7 +170,7 @@ def pick_files(title: str = "选择文件", mime: str = "*/*") -> list:
         PythonActivity = j["PythonActivity"]
         activity = PythonActivity.mActivity
     except Exception:
-        return []
+        return None            # 原生选择器不可用 → 调用方才退回去用内置浏览器
 
     out = []
     done = threading.Event()
@@ -225,9 +225,9 @@ def pick_files(title: str = "选择文件", mime: str = "*/*") -> list:
                         | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
         PythonActivity.mActivity.startActivityForResult(intent, FILE_REQUEST)
     except Exception:
-        return []
+        return None
     done.wait(timeout=600)
-    return out
+    return out                # 用户取消 → []（**不要**再弹内置浏览器）
 
 
 def _display_name(resolver, uri) -> str:
@@ -248,3 +248,160 @@ def _display_name(resolver, uri) -> str:
         pass
     return ""
 
+
+
+def tree_to_path(uri: str) -> str:
+    """把 SAF 的 tree URI 还原成真实文件路径（本机有"所有文件访问权限"，可直接用）。
+
+    content://com.android.externalstorage.documents/tree/primary%3ADownload
+        → /storage/emulated/0/Download
+    外置卡是 XXXX-XXXX: 前缀 → /storage/XXXX-XXXX/…
+    转换不出来时返回空串，调用方退回内置浏览器。
+    """
+    if not uri or "tree/" not in uri:
+        return ""
+    try:
+        from urllib.parse import unquote
+        tail = uri.split("tree/", 1)[1].split("?", 1)[0]
+        doc = unquote(tail)
+        if ":" not in doc:
+            return ""
+        volume, _, rel = doc.partition(":")
+        if volume.lower() == "primary":
+            base = "/storage/emulated/0"
+        else:
+            base = "/storage/" + volume
+        full = os.path.join(base, rel) if rel else base
+        return full if os.path.isdir(full) else ""
+    except Exception:
+        return ""
+
+
+def pick_directory(title: str = "选择文件夹") -> str:
+    """原生选目录并转成真实路径；取消返回 ""，不支持返回 None。"""
+    uri = pick_tree(title)
+    if uri == "":
+        return None                     # 弹不出来 → 调用方退回内置浏览器
+    if not uri:
+        return ""
+    return tree_to_path(uri)
+
+
+# ---- 异步版（正确姿势）：发起在主线程，等待在后台线程，结果回主线程 ------------
+# 原同步版在主线程 time.sleep 轮询，而 Activity 结果回调也要在主线程跑 → 死锁/超时。
+def _finish_async(flag, holder, timeout, on_done):
+    def _worker():
+        flag.wait(timeout)
+        value = holder.get("value")
+        try:
+            from kivy.clock import Clock
+            Clock.schedule_once(lambda _dt: on_done(value), 0)
+        except Exception:
+            on_done(value)
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+def pick_tree_cb(on_done, title: str = "选择文件夹") -> None:
+    """官方目录选择器（异步回调版）。on_done(path)：""=取消，None=原生不可用。"""
+    try:
+        from android import activity as android_activity
+        j = _jnius()
+    except Exception:
+        on_done(None)
+        return
+    holder, flag = {}, threading.Event()
+
+    def _on_result(request, code, data):
+        if request != TREE_REQUEST:
+            return
+        try:
+            if code == -1 and data is not None and data.getData() is not None:
+                uri = data.getData()
+                try:
+                    j["PythonActivity"].mActivity.getContentResolver()                         .takePersistableUriPermission(uri, 0x00000001 | 0x00000002)
+                except Exception:
+                    pass
+                holder["value"] = tree_to_path(str(uri))
+            else:
+                holder["value"] = ""
+        finally:
+            flag.set()
+
+    android_activity.bind(on_activity_result=_on_result)
+    try:
+        intent = j["Intent"](j["Intent"].ACTION_OPEN_DOCUMENT_TREE)
+        intent.addFlags(0x00000040 | 0x00000001 | 0x00000002)
+        j["PythonActivity"].mActivity.startActivityForResult(intent, TREE_REQUEST)
+    except Exception:
+        android_activity.unbind(on_activity_result=_on_result)
+        on_done(None)
+        return
+    _finish_async(flag, holder, 300, on_done)
+
+
+def pick_files_cb(on_done, title: str = "选择文件", mime: str = "*/*") -> None:
+    """官方文件选择器（异步回调版）。on_done(list)：[]=取消，None=原生不可用。"""
+    try:
+        from android import activity as android_activity
+        j = _jnius()
+    except Exception:
+        on_done(None)
+        return
+    holder, flag = {}, threading.Event()
+
+    def _on_result(request, code, data):
+        if request != FILE_REQUEST:
+            return
+        try:
+            if code != -1 or data is None:
+                holder["value"] = []
+                return
+            uris = []
+            clip = data.getClipData()
+            if clip is not None:
+                for i in range(clip.getItemCount()):
+                    uris.append(clip.getItemAt(i).getUri())
+            elif data.getData() is not None:
+                uris.append(data.getData())
+            resolver = j["PythonActivity"].mActivity.getContentResolver()
+            dest = os.path.join(os.path.dirname(os.path.dirname(
+                os.path.abspath(__file__))), "picked")
+            os.makedirs(dest, exist_ok=True)
+            out = []
+            for uri in uris:
+                try:
+                    resolver.takePersistableUriPermission(
+                        uri, 0x00000001)
+                except Exception:
+                    pass
+                name = _display_name(resolver, uri) or "picked"
+                target = os.path.join(dest, name)
+                with open(target, "wb") as fh:
+                    stream = resolver.openInputStream(uri)
+                    buf = bytearray(65536)
+                    while True:
+                        n = stream.read(buf)
+                        if n <= 0:
+                            break
+                        fh.write(bytes(buf[:n]))
+                    stream.close()
+                out.append(target)
+            holder["value"] = out
+        except Exception:
+            holder["value"] = []
+        finally:
+            flag.set()
+
+    android_activity.bind(on_activity_result=_on_result)
+    try:
+        intent = j["Intent"](j["Intent"].ACTION_OPEN_DOCUMENT)
+        intent.addCategory(j["Intent"].CATEGORY_OPENABLE)
+        intent.setType(mime)
+        intent.putExtra(j["Intent"].EXTRA_ALLOW_MULTIPLE, True)
+        intent.addFlags(0x00000001 | 0x00000040)
+        j["PythonActivity"].mActivity.startActivityForResult(intent, FILE_REQUEST)
+    except Exception:
+        android_activity.unbind(on_activity_result=_on_result)
+        on_done(None)
+        return
+    _finish_async(flag, holder, 300, on_done)

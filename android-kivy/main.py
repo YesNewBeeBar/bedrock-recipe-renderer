@@ -49,7 +49,7 @@ from platform_layer import browser as browser_mod           # noqa: E402
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.1.4"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.1.6"          # 界面会显示，用来确认手机上跑的是哪一版
 
 
 class MainView(BoxLayout):
@@ -144,26 +144,51 @@ class MainView(BoxLayout):
                 return cand
         return "/sdcard"
 
-    def _pick_files_saf(self, key: str) -> bool:
-        """先用 Android 官方文件选择器（ACTION_OPEN_DOCUMENT）试一次。
 
-        成功返回 True；不可用/被取消返回 False，调用方再退回内置浏览器。
+
+    def _pick(self, key: str) -> None:
+        """选择入口：**优先用 Android 官方选择器**，不可用才回退内置浏览器。
+
+        官方接口必须"发起在主线程、结果靠回调"，所以这里用回调式，
+        绝不在主线程等待（早先的同步写法会死锁，表现为选了没反应）。
         """
         try:
             from platform_layer import androidfs as a_fs
-            got = a_fs.pick_files("选择配方 / 压缩包（可多选）")
         except Exception:
-            return False
-        if not got:
-            return False
-        self.state["files"] = list(got)
-        self._msg(f"已选 {len(got)} 个文件（系统选择器）")
-        remember.save(self.state)
-        return True
+            self._browser_pick(key)
+            return
 
-    def _pick(self, key: str) -> None:
-        if key == "files" and self._pick_files_saf(key):
-            return                      # 官方文件选择器成功，就不再用内置浏览器
+        def after_files(got):
+            if got is None:                      # 原生弹不出来 → 回退
+                self._browser_pick(key)
+                return
+            if not got:                          # 用户取消：结束，别再弹浏览器
+                self._msg("已取消选择")
+                return
+            self.state["files"] = list(got)
+            self._msg(f"已选 {len(got)} 个文件（系统选择器）")
+            remember.save(self.state)
+
+        def after_dir(path):
+            if path is None:
+                self._browser_pick(key)
+                return
+            if not path:
+                self._msg("已取消选择")
+                return
+            self.state[key] = path
+            self._msg(f"{key}: {path}（系统选择器）")
+            remember.save(self.state)
+
+        if key == "files":
+            a_fs.pick_files_cb(after_files)
+        elif key in ("bp", "rp", "out"):
+            a_fs.pick_tree_cb(after_dir)
+        else:
+            self._browser_pick(key)              # vanilla 等仍走浏览器
+
+    def _browser_pick(self, key: str) -> None:
+        """内置浏览器（回退用）：只有官方选择器在这台机器上弹不出来时才走这里。"""
         mode = "dir" if key in ("bp", "rp", "out") else "file"
         title = {"bp": "选择行为包 BP 文件夹", "rp": "选择资源包 RP 文件夹",
                  "out": "选择出图目录", "vanilla": "选择原版包 zip",
