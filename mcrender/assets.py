@@ -659,9 +659,11 @@ class Assets:
                 return kind
         if name in self.item_texture or key in self.item_texture:
             return "item"
-        # 只认 blocks.json（方块**定义**表）。不用 terrain_texture：
-        # 不少附加包把物品也注册进地形图集，用它会误判成方块（用户反馈过）。
-        if name in self.blocks or key in self.blocks:
+        # 自定义方块（stonecraft:lv1stone 这类）**只**登记在 terrain_texture，
+        # 不认它就会被判成 item → 方块分支被跳过 → 方块贴图全丢（用户反馈的回归）。
+        # 顺序：blocks.json → terrain_texture；BP 定义（self.kinds）最优先，已在上面处理。
+        if (name in self.blocks or key in self.blocks
+                or name in self.terrain_texture or key in self.terrain_texture):
             return "block"
         # 判不出来的按**物品**处理：乱画成立方体比缺图更糟（用户多次反馈过）
         return "item"
