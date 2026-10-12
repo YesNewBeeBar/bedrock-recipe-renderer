@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import gui_theme
 import json
 import os
 import shutil
@@ -518,6 +519,14 @@ def run_gui(paths):
 
     state = {"busy": False}
 
+    # 主题：**只有第一次启动**按设备深色决定，之后一律尊重用户设置（写进配置）
+    dark = gui_theme.initial_dark(cfg)
+    save_config(cfg)
+
+    theme_btn = tk.Button(root, text=("☀ 浅色" if dark else "🌙 深色"),
+                          font=("Microsoft YaHei UI", 10), relief="flat", bd=0, padx=12, pady=4)
+    theme_btn.place(relx=1.0, x=-12, y=10, anchor="ne")
+
     tk.Label(root, text="合成表生成器", font=("Microsoft YaHei UI", 14, "bold")).pack(pady=(10, 2))
     tk.Label(root, text="选好 BP 和 RP，再拖配方进来（或点开始出图）", fg="#555555").pack()
     drop = tk.Label(root, text="↓  将 [json / .mcaddon / .mcpack / zip / 文件夹] 拖入窗口  ↓",
@@ -878,6 +887,17 @@ def run_gui(paths):
     write(f"输出目录：{cfg.get('out')}")
     if entries["vanilla"].get().strip():
         check_vanilla_pack()
+    def _apply_theme(is_dark: bool) -> None:
+        gui_theme.apply(root, is_dark)
+        cfg["theme"] = "dark" if is_dark else "light"
+        save_config(cfg)
+        state["dark"] = is_dark
+        theme_btn.configure(text=("☀ 浅色" if is_dark else "🌙 深色"))
+
+    state["dark"] = dark
+    theme_btn.configure(command=lambda: _apply_theme(not state["dark"]))
+    _apply_theme(dark)
+
     root.mainloop()
 
 
