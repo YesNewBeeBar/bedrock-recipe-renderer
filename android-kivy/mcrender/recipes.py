@@ -35,8 +35,8 @@ def _item(value):
         parts = value.split(":")
         if len(parts) >= 3:
             ns, base, tail = parts[0], parts[1], ":".join(parts[2:])
-            if base == "potion_type" and len(parts) >= 4:
-                return f"minecraft:potion#{parts[3]}", 1
+            if base == "potion_type":
+                return f"minecraft:potion#{tail}", 1
             return f"{ns}:{base}#{tail}", 1
         return value, 1
     if isinstance(value, list):
