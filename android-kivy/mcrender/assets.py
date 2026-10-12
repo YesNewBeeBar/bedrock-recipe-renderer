@@ -260,7 +260,16 @@ DATA_VARIANTS = {
               3: "player_head", 4: "creeper_head", 5: "dragon_head", 6: "piglin_head"},
     "wool": {i: f"{c}_wool" for i, c in enumerate(_COLOURS)},
     "carpet": {i: f"{c}_carpet" for i, c in enumerate(_COLOURS)},
-    "dye": {i: f"{c}_dye" for i, c in enumerate(_COLOURS)},
+    # 染料 data 值按**维基"物品数据值"表**：0 墨囊 / 1 红 / 2 绿 / 3 可可豆 / 4 青金石 /
+    # … / 15 骨粉，16~19 是 *_new。注意 _COLOURS 是 1.21 新染料的顺序，不能当 legacy data 用。
+    "dye": {0: "dye_powder_black", 1: "dye_powder_red", 2: "dye_powder_green",
+            3: "dye_powder_brown", 4: "dye_powder_blue", 5: "dye_powder_purple",
+            6: "dye_powder_cyan", 7: "dye_powder_silver", 8: "dye_powder_gray",
+            9: "dye_powder_pink", 10: "dye_powder_lime", 11: "dye_powder_yellow",
+            12: "dye_powder_light_blue", 13: "dye_powder_magenta",
+            14: "dye_powder_orange", 15: "dye_powder_white",
+            16: "dye_powder_black_new", 17: "dye_powder_brown_new",
+            18: "dye_powder_blue_new", 19: "dye_powder_white_new"},
     "concrete": {i: f"{c}_concrete" for i, c in enumerate(_COLOURS)},
     "concrete_powder": {i: f"{c}_concrete_powder" for i, c in enumerate(_COLOURS)},
     "stained_glass": {i: f"{c}_stained_glass" for i, c in enumerate(_COLOURS)},
