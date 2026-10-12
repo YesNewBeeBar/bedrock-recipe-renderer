@@ -50,18 +50,30 @@ from platform_layer import remember
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.2.0"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.2.1"          # 界面会显示，用来确认手机上跑的是哪一版
 
 
 # ---------------------------------------------------------------- 外观（简洁现代）
-ACCENT = (0.20, 0.51, 0.96, 1)        # 主色
-ACCENT_DOWN = (0.14, 0.40, 0.82, 1)
-TEXT_DIM = (0.35, 0.37, 0.42, 1)
-BG = (0.97, 0.97, 0.98, 1)
+# 明/暗两套配色；按钮文字恒为白色（在强调色底上永远清晰）
+LIGHT = {
+    "bg": (0.97, 0.97, 0.98, 1), "fg": (0.13, 0.14, 0.17, 1),
+    "dim": (0.38, 0.40, 0.45, 1), "panel": (1, 1, 1, 1),
+    "accent": (0.20, 0.51, 0.96, 1),
+}
+DARK = {
+    "bg": (0.09, 0.10, 0.12, 1), "fg": (0.93, 0.94, 0.96, 1),
+    "dim": (0.72, 0.74, 0.78, 1), "panel": (0.16, 0.17, 0.20, 1),
+    "accent": (0.26, 0.56, 0.98, 1),
+}
+THEME = {"dark": False}
+
+
+def theme_colors():
+    return DARK if THEME["dark"] else LIGHT
 
 
 def _round(widget, radius=10, color=(1, 1, 1, 1)):
-    """给控件加圆角背景（Kivy 默认按钮是方角灰块，这里统一成现代扁平样式）。"""
+    """给控件加圆角背景（默认按钮是方角灰块，这里统一成现代扁平样式）。"""
     from kivy.graphics import Color, RoundedRectangle
     with widget.canvas.before:
         Color(*color)
@@ -73,15 +85,22 @@ def _round(widget, radius=10, color=(1, 1, 1, 1)):
 
     widget.bind(pos=_sync, size=_sync)
     _sync()
+    widget._round_rect = rect
+    widget._round_color = widget.canvas.before.children[-1]
+    return rect
 
 
-def apply_theme(root):
-    """一次遍历把界面刷成简洁现代的样式；不改任何逻辑。"""
+def apply_theme(root, dark=None):
+    """一次遍历刷新样式。切换暗色时重复调用即可（只改颜色，不重建控件）。"""
     from kivy.core.window import Window
     from kivy.uix.button import Button
     from kivy.uix.label import Label
+    from kivy.uix.spinner import Spinner
     from kivy.uix.textinput import TextInput
-    Window.clearcolor = BG
+    if dark is not None:
+        THEME["dark"] = bool(dark)
+    c = theme_colors()
+    Window.clearcolor = c["bg"]
 
     def walk(w):
         yield w
@@ -93,20 +112,26 @@ def apply_theme(root):
         if isinstance(w, Button):
             w.background_normal = ""
             w.background_down = ""
-            w.background_color = (0, 0, 0, 0)          # 圆角块自己画
+            w.background_color = (0, 0, 0, 0)
             w.color = (1, 1, 1, 1)
             w.bold = True
-            _round(w, 10, ACCENT)
+            if getattr(w, "_round_color", None) is not None:
+                w._round_color.rgba = c["accent"]
+            else:
+                _round(w, 10, c["accent"])
+        elif isinstance(w, Spinner):
+            w.background_normal = ""
+            w.background_color = c["panel"]
+            w.color = c["fg"]
         elif isinstance(w, TextInput):
             w.background_normal = ""
-            w.background_color = (1, 1, 1, 1)
-            w.foreground_color = (0.15, 0.16, 0.20, 1)
-            w.cursor_color = ACCENT
+            w.background_color = c["panel"]
+            w.foreground_color = c["fg"]
+            w.cursor_color = c["accent"]
             w.padding = [dp(10), dp(10)]
         elif isinstance(w, Label):
-            if w.color[:3] == (1, 1, 1):
-                w.color = TEXT_DIM
-
+            w.color = c["fg"] if getattr(w, "_is_title", False) else c["dim"]
+    return c
 
 
 class MainView(BoxLayout):
@@ -138,49 +163,73 @@ class MainView(BoxLayout):
         return row
 
     def _build(self) -> None:
-        self.add_widget(Label(text=f"合成表生成器 v{APP_VERSION}", size_hint_y=None,
-                              height=dp(32), bold=True))
+        from kivy.uix.switch import Switch
+        # ---- 标题栏：标题 + 右上角暗色开关 ----
+        top = self._row()
+        title = Label(text=f"合成表生成器 v{APP_VERSION}", bold=True,
+                      font_size=dp(15), halign="left", valign="middle")
+        title.bind(size=lambda w, _v: setattr(w, "text_size", (w.width, None)))
+        title._is_title = True
+        top.add_widget(title)
+        top.add_widget(Label(text="暗色", size_hint_x=None, width=dp(40),
+                             font_size=dp(11), halign="right", valign="middle"))
+        self.dark_sw = Switch(active=False, size_hint_x=None, width=dp(60))
+        self.dark_sw.bind(active=lambda _w, v: self._set_dark(bool(v)))
+        top.add_widget(self.dark_sw)
+        self.add_widget(top)
+
         self.perm_btn = self._btn("① 授予「所有文件访问」权限", self._ask_permission)
         self.add_widget(self.perm_btn)
 
+        # ---- 第一排：选择文件 / 出图目录 ----
         self.add_widget(self._row(
-            self._btn("选配方/压缩包", lambda *_: self._pick("files")),
+            self._btn("选择文件", lambda *_: self._pick("files")),
+            self._btn("出图目录", lambda *_: self._pick("out")),
+        ))
+        # ---- 第二排：BP / RP ----
+        self.add_widget(self._row(
             self._btn("选 BP", lambda *_: self._pick("bp")),
             self._btn("选 RP", lambda *_: self._pick("rp")),
         ))
-        self.add_widget(self._row(
-            self._btn("选原版包(zip)", lambda *_: self._pick("vanilla")),
-            self._btn("内置原版素材 ✓", lambda *_: self._msg(
-                "原版素材已随 App 内置，无需下载；只有想用别的版本时才点左边的按钮。")),
-        ))
+        # ---- 第三排：缩放 / 阴影 ----
         self.add_widget(self._row(
             Label(text="缩放", size_hint_x=None, width=dp(44)),
             Spinner(text="4", values=("2", "3", "4", "6", "8"), size_hint_x=None,
-                    width=dp(70), on_text=lambda _s, t: self.state.update(scale=t)),
-            Label(text="版式", size_hint_x=None, width=dp(44)),
-            Spinner(text="modern", values=("modern", "classic"),
-                    on_text=lambda _s, t: self.state.update(layout=t)),
+                    width=dp(66), on_text=lambda _s, t: self.state.update(scale=t)),
+            Label(text="阴影", size_hint_x=None, width=dp(44)),
+            Switch(active=True, size_hint_x=None, width=dp(60),
+                   on_active=lambda _w, v: self.state.update(show_counts=bool(v))),
         ))
+        # ---- 第四排：使用本地 ----
         self.add_widget(self._row(
-            Label(text="只用本地(不联网)", size_hint_x=None, width=dp(140)),
-            # 默认打开：手机上网易超时，离线模式才快（要补全素材时再关掉它）
-            Switch(active=True,
+            Label(text="使用本地（不联网）", size_hint_x=None, width=dp(150)),
+            Switch(active=True, size_hint_x=None, width=dp(60),
                    on_active=lambda _w, v: self.state.update(offline=bool(v))),
-            self._btn("选择出图目录", lambda *_: self._pick("out")),
         ))
+        # ---- 出图 ----
+        self.add_widget(self._row(self._btn("▶ 开始出图", self.on_start)))
+        # ---- 导出 / 分享 ----
         self.add_widget(self._row(
-            self._btn("▶ 开始出图", self.on_start),
             self._btn("导出 ZIP", self.on_zip),
             self._btn("分享 ZIP", self.on_share),
         ))
-        self.bar = ProgressBar(max=1.0, size_hint_y=None, height=dp(12))
+        self.bar = ProgressBar(max=1.0, size_hint_y=None, height=dp(10))
         self.add_widget(self.bar)
-        self.status = Label(text="", size_hint_y=None, height=dp(30), font_size=dp(11))
+        self.status = Label(text="", size_hint_y=None, height=dp(28), font_size=dp(11))
         self.add_widget(self.status)
         self.log = TextInput(text="", readonly=True, font_size=dp(11))
         self.add_widget(self.log)
-        self._msg("就绪。先点①授权，再用上面的按钮选文件/文件夹。")
-        self._msg("出图会直接写你选的真实目录（其下建「合成表」）。")
+        self._msg("就绪。")
+        self._msg("出图会直接写你选的目录（其下建「合成表」）。")
+
+    def _set_dark(self, flag: bool) -> None:
+        """切换暗色（只改颜色，不重建控件）。"""
+        try:
+            apply_theme(self, dark=flag)
+            self.state["dark"] = flag
+            remember.save(self.state)
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------ 基础
     def _msg(self, text: str) -> None:
@@ -578,7 +627,7 @@ class BRRApp(App):
         view = MainView()
         crashlog.install(view)
         try:
-            apply_theme(view)          # 简洁现代的样式
+            apply_theme(view, dark=bool(self.state.get("dark")))   # 简洁现代样式 + 记忆暗色
         except Exception:
             pass
         return view

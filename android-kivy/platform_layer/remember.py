@@ -14,7 +14,7 @@ from . import paths
 
 #: 需要记住的键（值都是路径或 tree URI 字符串）
 KEYS = ("out", "bp", "rp", "vanilla", "files", "scale", "layout", "offline",
-        "out_tree", "bp_tree", "rp_tree")
+        "out_tree", "bp_tree", "rp_tree", "dark")
 
 
 def _file() -> str:
