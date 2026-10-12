@@ -261,6 +261,7 @@ def tree_to_path(uri: str) -> str:
     if not uri or "tree/" not in uri:
         return ""
     try:
+        import posixpath
         from urllib.parse import unquote
         tail = uri.split("tree/", 1)[1].split("?", 1)[0]
         doc = unquote(tail)
@@ -271,8 +272,11 @@ def tree_to_path(uri: str) -> str:
             base = "/storage/emulated/0"
         else:
             base = "/storage/" + volume
-        full = os.path.join(base, rel) if rel else base
-        return full if os.path.isdir(full) else ""
+        full = posixpath.join(base, rel) if rel else base
+        # 注意：**不要**在这里用 os.path.isdir 校验 ✗
+        # Android 分区存储下即使有"所有文件访问权限"，某些实现的 isdir 也可能为 False，
+        # 结果把"选好了"误判成"取消"（用户反馈过）。能不能读写交给下游判断。
+        return full
     except Exception:
         return ""
 
