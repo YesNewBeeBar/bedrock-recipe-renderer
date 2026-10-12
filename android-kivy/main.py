@@ -49,7 +49,7 @@ from platform_layer import browser as browser_mod           # noqa: E402
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.1.2"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.1.3"          # 界面会显示，用来确认手机上跑的是哪一版
 
 
 class MainView(BoxLayout):
@@ -267,28 +267,20 @@ class MainView(BoxLayout):
             self._diag("!! 解包失败: " + "".join(_tb.format_exception_only(type(exc), exc)))
             root = os.path.join(work, "unpack", os.path.basename(archive))
         total = sum(len(fs) for _b, _d, fs in os.walk(root))
-        bps, rps = [], []
-        for base, _dirs, files in os.walk(root):
-            if "manifest.json" not in files:
-                continue
-            has_bp = any(os.path.isdir(os.path.join(base, d)) for d in
-                         ("recipes", "entities", "loot_tables", "scripts",
-                          "behavior_packs"))
-            has_rp = os.path.isdir(os.path.join(base, "textures"))
-            if has_bp and not has_rp:
-                bps.append(base)
-            elif has_rp and not has_bp:
-                rps.append(base)
-            elif has_bp and has_rp:
-                bps.append(base)
-                rps.append(base)
-        if not bps:                                  # 没有 manifest 就退回整个解包目录
-            bps = [root]
-        self._diag(f"解包 {os.path.basename(archive)}（{size_mb:.1f} MB）"
-                   f"→ 落到 {root}，文件 {total} 个，BP {len(bps)} 个，RP {len(rps)} 个")
-        self.state["unpack_root"] = root          # 兜底：让核心自己去旁边找 textures/
-        if rps and not self.state.get("rp"):
-            self.state["rp"] = rps[0]
+        # 与桌面端**同一套**判定：按 manifest 的模块类型分 BP/RP，
+        # 并用 find_matching_rp（名字替换 + manifest uuid 依赖）给 BP 配 RP。
+        # 不再用"看有没有 textures/ 目录"的启发式 —— 那会让多面方块/自定义模型读不到。
+        from mcrender import packs as _packs
+        pairs, bps, rps = _packs.scan_packs(root)
+        self._diag(f"包识别: BP {len(bps)} 个, RP {len(rps)} 个, 配对 {len(pairs)} 组")
+        for _bp, _rp in pairs:
+            self._diag("   BP=" + (os.path.basename(_bp) if _bp else "无")
+                       + " → RP=" + (os.path.basename(_rp) if _rp else "（没配上）"))
+        if pairs:
+            # 优先取"配上了 RP"的那一组；BP/RP 都按核心给的精确路径传下去
+            _bp, _rp = next(((b, r) for b, r in pairs if r), pairs[0])
+            self.state["bp"] = _bp or ""
+            self.state["rp"] = _rp or ""
             self._msg("已自动使用包内资源包 RP：" + os.path.basename(rps[0]))
         return bps, rps
 
