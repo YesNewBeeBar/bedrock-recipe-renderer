@@ -50,14 +50,14 @@ from platform_layer import remember
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.2.2"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.2.3"          # 界面会显示，用来确认手机上跑的是哪一版
 
 
 # ---------------------------------------------------------------- 外观（简洁现代）
 # 明/暗两套配色；按钮文字恒为白色（在强调色底上永远清晰）
 LIGHT = {
-    "bg": (0.97, 0.97, 0.98, 1), "fg": (0.05, 0.06, 0.08, 1),      # 标题：接近纯黑
-    "dim": (0.12, 0.13, 0.16, 1), "panel": (1, 1, 1, 1),           # 操作区文字：也要够黑
+    "bg": (0.97, 0.97, 0.98, 1), "fg": (0, 0, 0, 1),               # 标题：纯黑
+    "dim": (0, 0, 0, 1), "panel": (1, 1, 1, 1),                     # 操作区文字：纯黑
     "accent": (0.20, 0.51, 0.96, 1),
 }
 DARK = {
