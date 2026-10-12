@@ -523,16 +523,31 @@ def run_gui(paths):
     dark = gui_theme.initial_dark(cfg)
     save_config(cfg)
 
-    theme_btn = tk.Button(root, text=("☀ 浅色" if dark else "🌙 深色"),
-                          font=("Microsoft YaHei UI", 10), relief="flat", bd=0, padx=12, pady=4)
-    theme_btn.place(relx=1.0, x=-12, y=10, anchor="ne")
+    def _toggle_theme():
+        _apply_theme(not state.get("dark", False))
+
+    theme_btn = gui_theme.pill(root, ("☀ 浅色" if dark else "🌙 深色"),
+                               _toggle_theme, dark=dark, kind="ghost")
+    theme_btn.place(relx=1.0, x=-12, y=12, anchor="ne", width=96)
 
     tk.Label(root, text="合成表生成器", font=("Microsoft YaHei UI", 14, "bold")).pack(pady=(10, 2))
     tk.Label(root, text="选好 BP 和 RP，再拖配方进来（或点开始出图）", fg="#555555").pack()
-    drop = tk.Label(root, text="↓  将 [json / .mcaddon / .mcpack / zip / 文件夹] 拖入窗口  ↓",
-                    height=2, relief="ridge", bd=2,
-                    font=("Microsoft YaHei UI", 11), bg="#eeeeee")
-    drop.pack(fill="x", padx=12, pady=8)
+    drop = tk.Canvas(root, height=92, highlightthickness=0, bd=0)
+
+    def _draw_drop(_e=None):
+        drop.delete("all")
+        w = drop.winfo_width() or 800
+        c = gui_theme.palette(bool(state.get("dark")))
+        gui_theme.round_rect(drop, 1, 1, w - 1, 91, 14, fill=c["panel"],
+                             outline=c["accent"], width=1, dash=(5, 4))
+        drop.create_text(w / 2, 34, text="↓  将 [json / .mcaddon / .mcpack / zip / 文件夹] 拖入窗口  ↓",
+                         fill=c["fg"], font=("Microsoft YaHei UI", 11))
+        drop.create_text(w / 2, 66, text="拖放就绪 —— 松手即出图",
+                         fill=c["accent"], font=("Microsoft YaHei UI", 10))
+
+    drop.bind("<Configure>", _draw_drop)
+    drop.pack(fill="x", padx=12, pady=10)
+    state["_draw_drop"] = _draw_drop
 
     paths_frame = tk.Frame(root)
     paths_frame.pack(fill="x", padx=12)
@@ -892,11 +907,17 @@ def run_gui(paths):
         cfg["theme"] = "dark" if is_dark else "light"
         save_config(cfg)
         state["dark"] = is_dark
-        theme_btn.configure(text=("☀ 浅色" if is_dark else "🌙 深色"))
+        try:
+            theme_btn._set_text("☀ 浅色" if is_dark else "🌙 深色")
+        except Exception:
+            pass
+        try:
+            state["_draw_drop"]()          # 拖放卡跟着换色
+        except Exception:
+            pass
 
     state["dark"] = dark
-    theme_btn.configure(command=lambda: _apply_theme(not state["dark"]))
-    _apply_theme(dark)
+    _apply_theme(dark)          # 胶囊按钮的点击已在 gui_theme.pill 里绑定
     gui_theme.apply_later(root, dark)      # 晚建的控件也要刷到
 
     root.mainloop()

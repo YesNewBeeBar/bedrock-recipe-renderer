@@ -133,3 +133,78 @@ def apply(root, dark: bool, skip=()) -> dict:
         except Exception:
             pass
     return c
+
+
+# ------------------------------------------------------------------ 现代控件
+def round_rect(canvas, x1, y1, x2, y2, r, fill=None, outline=None, width=1, dash=None):
+    """在 Canvas 上画圆角矩形（tkinter 没有原生圆角）；dash 给虚线卡片用。"""
+    import tkinter as tk
+    items = []
+    if fill:
+        items.append(canvas.create_rectangle(x1 + r, y1, x2 - r, y2, fill=fill, outline=""))
+        items.append(canvas.create_rectangle(x1, y1 + r, x2, y2 - r, fill=fill, outline=""))
+        for cx, cy, start in ((x1 + r, y1 + r, 90), (x2 - r, y1 + r, 0),
+                              (x1 + r, y2 - r, 180), (x2 - r, y2 - r, 270)):
+            items.append(canvas.create_arc(cx - r, cy - r, cx + r, cy + r,
+                                           start=start, extent=90, fill=fill, outline=""))
+    if outline:
+        # create_line 只认 fill（outline 是 arc/rectangle 的参数）
+        kw = {"fill": outline, "width": width}
+        if dash:
+            kw["dash"] = dash
+        items.append(canvas.create_line(x1 + r, y1, x2 - r, y1, **kw))
+        items.append(canvas.create_line(x1 + r, y2, x2 - r, y2, **kw))
+        items.append(canvas.create_line(x1, y1 + r, x1, y2 - r, **kw))
+        items.append(canvas.create_line(x2, y1 + r, x2, y2 - r, **kw))
+        for cx, cy, start in ((x1 + r, y1 + r, 90), (x2 - r, y1 + r, 0),
+                              (x1 + r, y2 - r, 180), (x2 - r, y2 - r, 270)):
+            items.append(canvas.create_arc(cx - r, cy - r, cx + r, cy + r,
+                                           start=start, extent=90, style="arc",
+                                           outline=outline, width=width,
+                                           **( {"dash": dash} if dash else {} )))
+    return items
+
+
+def pill(parent, text, command, dark=False, kind="ghost"):
+    """胶囊按钮：kind=primary(蓝底白字) / ghost(面板底描边)。"""
+    import tkinter as tk
+    c = palette(dark)
+    bg = c["accent"] if kind == "primary" else c["panel"]
+    fg = c["accent_fg"] if kind == "primary" else c["fg"]
+    cv = tk.Canvas(parent, height=34, highlightthickness=0, bd=0, bg=c["bg"])
+    state = {"text": text}
+
+    def redraw(_e=None):
+        cv.delete("all")
+        w = cv.winfo_width() or 120
+        round_rect(cv, 1, 1, w - 1, 33, 17, fill=bg,
+                   outline=None if kind == "primary" else c["border"])
+        cv.create_text(w / 2, 17, text=state["text"], fill=fg,
+                       font=("Microsoft YaHei UI", 10))
+
+    cv.bind("<Configure>", redraw)
+    cv.bind("<Button-1>", lambda _e: command())
+    cv.bind("<Enter>", lambda _e: cv.configure(cursor="hand2"))
+    redraw()
+    cv._set_text = lambda t: (state.update(text=t), redraw())
+    return cv
+
+
+def card(parent, dark=False, radius=12, pad=0):
+    """一张圆角卡片，返回 (canvas, 内容 frame)。"""
+    import tkinter as tk
+    c = palette(dark)
+    cv = tk.Canvas(parent, highlightthickness=0, bd=0, bg=c["bg"])
+    inner = tk.Frame(cv, bg=c["panel"])
+
+    def redraw(_e=None):
+        cv.delete("shape")
+        w, h = cv.winfo_width(), cv.winfo_height()
+        round_rect(cv, 1, 1, w - 1, h - 1, radius, fill=c["panel"], outline=c["border"])
+        cv.tag_lower("shape")
+
+    cv.bind("<Configure>", redraw)
+    cv.create_window(pad + 8, pad + 6, window=inner, anchor="nw",
+                     width=max(1, cv.winfo_width() - 2 * pad - 16))
+    redraw()
+    return cv, inner
