@@ -50,7 +50,63 @@ from platform_layer import remember
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.1.9"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.2.0"          # 界面会显示，用来确认手机上跑的是哪一版
+
+
+# ---------------------------------------------------------------- 外观（简洁现代）
+ACCENT = (0.20, 0.51, 0.96, 1)        # 主色
+ACCENT_DOWN = (0.14, 0.40, 0.82, 1)
+TEXT_DIM = (0.35, 0.37, 0.42, 1)
+BG = (0.97, 0.97, 0.98, 1)
+
+
+def _round(widget, radius=10, color=(1, 1, 1, 1)):
+    """给控件加圆角背景（Kivy 默认按钮是方角灰块，这里统一成现代扁平样式）。"""
+    from kivy.graphics import Color, RoundedRectangle
+    with widget.canvas.before:
+        Color(*color)
+        rect = RoundedRectangle(radius=[dp(radius)])
+
+    def _sync(*_a):
+        rect.pos = widget.pos
+        rect.size = widget.size
+
+    widget.bind(pos=_sync, size=_sync)
+    _sync()
+
+
+def apply_theme(root):
+    """一次遍历把界面刷成简洁现代的样式；不改任何逻辑。"""
+    from kivy.core.window import Window
+    from kivy.uix.button import Button
+    from kivy.uix.label import Label
+    from kivy.uix.textinput import TextInput
+    Window.clearcolor = BG
+
+    def walk(w):
+        yield w
+        for child in getattr(w, "children", []):
+            for sub in walk(child):
+                yield sub
+
+    for w in walk(root):
+        if isinstance(w, Button):
+            w.background_normal = ""
+            w.background_down = ""
+            w.background_color = (0, 0, 0, 0)          # 圆角块自己画
+            w.color = (1, 1, 1, 1)
+            w.bold = True
+            _round(w, 10, ACCENT)
+        elif isinstance(w, TextInput):
+            w.background_normal = ""
+            w.background_color = (1, 1, 1, 1)
+            w.foreground_color = (0.15, 0.16, 0.20, 1)
+            w.cursor_color = ACCENT
+            w.padding = [dp(10), dp(10)]
+        elif isinstance(w, Label):
+            if w.color[:3] == (1, 1, 1):
+                w.color = TEXT_DIM
+
 
 
 class MainView(BoxLayout):
@@ -66,6 +122,8 @@ class MainView(BoxLayout):
         self._build()
         if not perm.has_all_files() and not perm.can_read_public():
             Clock.schedule_once(lambda *_: self._ask_permission(), 1.0)
+        else:
+            Clock.schedule_once(lambda *_: self._hide_perm_btn(), 0.3)   # 已有权限就不显示
 
     # -------------------------------------------------------------------- UI
     def _btn(self, text, cb, **kw):
@@ -130,10 +188,21 @@ class MainView(BoxLayout):
         Clock.schedule_once(
             lambda *_: setattr(self.log, "text", (self.log.text + "\n" + line).strip()))
 
+    def _hide_perm_btn(self) -> None:
+        """有权限后把顶部按钮收起来（对象保留，避免别处引用报错）。"""
+        try:
+            self.perm_btn.height = 0
+            self.perm_btn.size_hint_y = None
+            self.perm_btn.opacity = 0
+            self.perm_btn.disabled = True
+        except Exception:
+            pass
+
     def _ask_permission(self, *_a) -> None:
         if perm.has_all_files():
             self.perm_btn.text = "① 已获得所有文件访问权限 ✓"
-            self._msg("权限已就绪，可以浏览文件了。")
+            self._msg("权限已就绪。")
+            self._hide_perm_btn()          # 顶部不再占位
             return
         self._msg("请在系统页面允许「管理所有文件」，返回后重新打开 App。")
         perm.request_all_files()
@@ -508,6 +577,10 @@ class BRRApp(App):
         self.title = "合成表生成器"
         view = MainView()
         crashlog.install(view)
+        try:
+            apply_theme(view)          # 简洁现代的样式
+        except Exception:
+            pass
         return view
 
 
