@@ -538,6 +538,7 @@ def run_gui(paths):
         drop.delete("all")
         w = drop.winfo_width() or 800
         c = gui_theme.palette(bool(state.get("dark")))
+        drop.configure(bg=c["bg"])          # Canvas 自己不设底色 → 默认白，会从圆角漏出来
         gui_theme.round_rect(drop, 1, 1, w - 1, 91, 14, fill=c["panel"],
                              outline=c["accent"], width=1, dash=(5, 4))
         drop.create_text(w / 2, 34, text="↓  将 [json / .mcaddon / .mcpack / zip / 文件夹] 拖入窗口  ↓",
