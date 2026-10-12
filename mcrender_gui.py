@@ -909,6 +909,7 @@ def run_gui(paths):
         state["dark"] = is_dark
         try:
             theme_btn._set_text("☀ 浅色" if is_dark else "🌙 深色")
+            theme_btn._set_theme(is_dark)      # 连 Canvas 底色一起换（否则切完还是白）
         except Exception:
             pass
         try:

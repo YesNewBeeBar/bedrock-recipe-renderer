@@ -128,6 +128,10 @@ def apply(root, dark: bool, skip=()) -> dict:
                             highlightbackground=c["border"])
             elif cls in ("Text", "Listbox"):
                 w.configure(bg=c["log_bg"], fg=c["log_fg"], insertbackground=c["fg"])
+            elif cls in ("Checkbutton", "Radiobutton"):
+                w.configure(bg=c["bg"], fg=c["fg"], activebackground=c["bg"],
+                            activeforeground=c["fg"], selectcolor=c["panel"],
+                            highlightbackground=c["bg"], highlightthickness=0)
             elif cls in ("Entry", "Spinbox"):
                 w.configure(bg=c["panel"], fg=c["fg"], insertbackground=c["fg"])
         except Exception:
@@ -156,12 +160,12 @@ def round_rect(canvas, x1, y1, x2, y2, r, fill=None, outline=None, width=1, dash
         items.append(canvas.create_line(x1 + r, y2, x2 - r, y2, **kw))
         items.append(canvas.create_line(x1, y1 + r, x1, y2 - r, **kw))
         items.append(canvas.create_line(x2, y1 + r, x2, y2 - r, **kw))
+        # 四角用实线弧（虚线弧在 tk 上会断断续续、看着毛糙）
         for cx, cy, start in ((x1 + r, y1 + r, 90), (x2 - r, y1 + r, 0),
                               (x1 + r, y2 - r, 180), (x2 - r, y2 - r, 270)):
             items.append(canvas.create_arc(cx - r, cy - r, cx + r, cy + r,
                                            start=start, extent=90, style="arc",
-                                           outline=outline, width=width,
-                                           **( {"dash": dash} if dash else {} )))
+                                           outline=outline, width=width))
     return items
 
 
@@ -186,7 +190,28 @@ def pill(parent, text, command, dark=False, kind="ghost"):
     cv.bind("<Button-1>", lambda _e: command())
     cv.bind("<Enter>", lambda _e: cv.configure(cursor="hand2"))
     redraw()
-    cv._set_text = lambda t: (state.update(text=t), redraw())
+    def set_theme(is_dark: bool):
+        cc = palette(is_dark)
+        cv.configure(bg=cc["bg"])
+        nonlocal_bg[0] = cc["accent"] if kind == "primary" else cc["panel"]
+        nonlocal_fg[0] = cc["accent_fg"] if kind == "primary" else cc["fg"]
+        redraw()
+
+    nonlocal_bg, nonlocal_fg = [bg], [fg]
+
+    def redraw2(_e=None):
+        cv.delete("all")
+        w = cv.winfo_width() or 120
+        round_rect(cv, 1, 1, w - 1, 33, 17, fill=nonlocal_bg[0],
+                   outline=None if kind == "primary" else palette(dark)["border"])
+        cv.create_text(w / 2, 17, text=state["text"], fill=nonlocal_fg[0],
+                       font=("Microsoft YaHei UI", 10))
+
+    cv.unbind("<Configure>")
+    cv.bind("<Configure>", redraw2)
+    cv._set_text = lambda t: (state.update(text=t), redraw2())
+    cv._set_theme = set_theme
+    redraw2()
     return cv
 
 
