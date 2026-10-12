@@ -49,7 +49,7 @@ from platform_layer import browser as browser_mod           # noqa: E402
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.1.3"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.1.4"          # 界面会显示，用来确认手机上跑的是哪一版
 
 
 class MainView(BoxLayout):
@@ -144,7 +144,26 @@ class MainView(BoxLayout):
                 return cand
         return "/sdcard"
 
+    def _pick_files_saf(self, key: str) -> bool:
+        """先用 Android 官方文件选择器（ACTION_OPEN_DOCUMENT）试一次。
+
+        成功返回 True；不可用/被取消返回 False，调用方再退回内置浏览器。
+        """
+        try:
+            from platform_layer import androidfs as a_fs
+            got = a_fs.pick_files("选择配方 / 压缩包（可多选）")
+        except Exception:
+            return False
+        if not got:
+            return False
+        self.state["files"] = list(got)
+        self._msg(f"已选 {len(got)} 个文件（系统选择器）")
+        remember.save(self.state)
+        return True
+
     def _pick(self, key: str) -> None:
+        if key == "files" and self._pick_files_saf(key):
+            return                      # 官方文件选择器成功，就不再用内置浏览器
         mode = "dir" if key in ("bp", "rp", "out") else "file"
         title = {"bp": "选择行为包 BP 文件夹", "rp": "选择资源包 RP 文件夹",
                  "out": "选择出图目录", "vanilla": "选择原版包 zip",
@@ -156,9 +175,11 @@ class MainView(BoxLayout):
             if key == "files":
                 self.state["files"] = [path]
                 self._msg("已选：" + os.path.basename(path))
+                remember.save(self.state)
             else:
                 self.state[key] = path
                 self._msg(f"{key}: {path}")
+                remember.save(self.state)          # 记住选择，下次不用再选
                 if key == "vanilla":
                     self.state["offline"] = True
                     self._msg("已切到本地模式（不再联网）")
@@ -451,6 +472,13 @@ class MainView(BoxLayout):
 
 class BRRApp(App):
     def build(self):
+        try:
+            used = remember.merge_into(self.state)
+            if used:
+                self.state.setdefault("_restored", used)
+                self._diag("已恢复上次的选择: " + ", ".join(used))   # 出图目录/BP/RP 等
+        except Exception:
+            pass
         self.title = "合成表生成器"
         view = MainView()
         crashlog.install(view)

@@ -148,3 +148,103 @@ def run_async(fn, *args):
     t = threading.Thread(target=fn, args=args, daemon=True)
     t.start()
     return t
+
+# ---- 官方"选择文件"接口：Intent.ACTION_OPEN_DOCUMENT（可多选） ----------------
+# 文档：https://developer.android.com/training/data-storage/shared/documents-files
+# 选中的是 content:// URI，核心只认普通路径，所以先复制进 App 私有目录再交给核心。
+FILE_REQUEST = 0xBEE2
+
+
+def pick_files(title: str = "选择文件", mime: str = "*/*") -> list:
+    """弹**系统**文件选择器（可多选），返回复制到私有目录后的真实路径列表。
+
+    - 用官方 Intent.ACTION_OPEN_DOCUMENT + EXTRA_ALLOW_MULTIPLE，不自己写文件浏览器
+    - 同时申请可持久化的读权限，重启后仍能访问同一批文件
+    - 失败/取消返回 []（调用方可以退回内置浏览器）
+    """
+    try:
+        from android import activity as android_activity
+        j = _jnius()
+        Intent = j["Intent"]
+        Uri = j["Uri"]
+        PythonActivity = j["PythonActivity"]
+        activity = PythonActivity.mActivity
+    except Exception:
+        return []
+
+    out = []
+    done = threading.Event()
+
+    def _on_result(request, code, data):
+        if request != FILE_REQUEST:
+            return
+        try:
+            if code == -1 and data is not None:              # RESULT_OK
+                uris = []
+                clip = data.getClipData()
+                if clip is not None:
+                    for i in range(clip.getItemCount()):
+                        uris.append(clip.getItemAt(i).getUri())
+                elif data.getData() is not None:
+                    uris.append(data.getData())
+                resolver = activity.getContentResolver()
+                dest = os.path.join(os.path.dirname(os.path.dirname(
+                    os.path.abspath(__file__))), "picked")
+                os.makedirs(dest, exist_ok=True)
+                for uri in uris:
+                    try:
+                        # 持久化读权限：官方说明里这是重启后继续访问的唯一方式
+                        resolver.takePersistableUriPermission(
+                            uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    except Exception:
+                        pass
+                    name = _display_name(resolver, uri) or "picked"
+                    target = os.path.join(dest, name)
+                    with open(target, "wb") as fh:
+                        stream = resolver.openInputStream(uri)
+                        buf = bytearray(65536)
+                        while True:
+                            n = stream.read(buf)
+                            if n <= 0:
+                                break
+                            fh.write(bytes(buf[:n]))
+                        stream.close()
+                    out.append(target)
+        except Exception:
+            pass
+        finally:
+            done.set()
+
+    android_activity.bind(on_activity_result=_on_result)
+    try:
+        intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+        intent.addCategory(Intent.CATEGORY_OPENABLE)
+        intent.setType(mime)
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, True)
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        PythonActivity.mActivity.startActivityForResult(intent, FILE_REQUEST)
+    except Exception:
+        return []
+    done.wait(timeout=600)
+    return out
+
+
+def _display_name(resolver, uri) -> str:
+    """从 content:// URI 查出真实文件名（官方 OpenableColumns.DISPLAY_NAME）。"""
+    try:
+        from jnius import autoclass
+        OpenableColumns = autoclass("android.provider.OpenableColumns")
+        cursor = resolver.query(uri, None, None, None, None)
+        if cursor is not None:
+            try:
+                if cursor.moveToFirst():
+                    idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if idx >= 0:
+                        return cursor.getString(idx)
+            finally:
+                cursor.close()
+    except Exception:
+        pass
+    return ""
+
