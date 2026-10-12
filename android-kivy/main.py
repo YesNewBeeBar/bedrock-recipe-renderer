@@ -50,7 +50,7 @@ from platform_layer import remember
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.2.3"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.2.4"          # 界面会显示，用来确认手机上跑的是哪一版
 
 
 # ---------------------------------------------------------------- 外观（简洁现代）
@@ -70,6 +70,25 @@ THEME = {"dark": False}
 
 def theme_colors():
     return DARK if THEME["dark"] else LIGHT
+
+
+def device_is_dark() -> bool:
+    """设备当前是不是深色（Android Configuration.uiMode）。拿不到就当浅色。"""
+    try:
+        from jnius import autoclass
+        conf = autoclass("org.kivy.android.PythonActivity").mActivity             .getResources().getConfiguration()
+        return bool(conf.uiMode & 0x30 == 0x20)      # UI_MODE_NIGHT_YES
+    except Exception:
+        return False
+
+
+def initial_dark(state: dict) -> bool:
+    """**只有第一次启动**（没有记忆）才跟随设备；之后一律用用户的设置。"""
+    if "dark" in state and isinstance(state["dark"], bool):
+        return state["dark"]
+    dark = device_is_dark()
+    state["dark"] = dark
+    return dark
 
 
 def _round(widget, radius=10, color=(1, 1, 1, 1)):
@@ -637,10 +656,23 @@ class BRRApp(App):
         self.title = "合成表生成器"
         view = MainView()
         crashlog.install(view)
-        try:
-            apply_theme(view, dark=bool(self.state.get("dark")))   # 简洁现代样式 + 记忆暗色
-        except Exception:
-            pass
+        dark0 = initial_dark(self.state)          # 首次跟随设备，之后用记忆
+        if not self.state.get("_theme_saved"):
+            try:
+                remember.save(self.state)
+                self.state["_theme_saved"] = True
+            except Exception:
+                pass
+
+        def _paint(_dt=None):
+            try:
+                apply_theme(view, dark=dark0)
+            except Exception as exc:              # 不再静默：写进诊断日志
+                self._diag("!! 主题应用失败: " + repr(exc))
+
+        # 控件是边建边出现的 —— 延后多刷几次，保证都覆盖到
+        for _d in (0.05, 0.3, 0.9):
+            Clock.schedule_once(_paint, _d)
         return view
 
 
