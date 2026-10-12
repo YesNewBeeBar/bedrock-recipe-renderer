@@ -5,6 +5,7 @@ from __future__ import annotations
 import glob
 import os
 import re
+import sys
 from dataclasses import dataclass, field
 
 from PIL import Image
@@ -312,6 +313,26 @@ for _suffix in WIKI_SUFFIXES:
     WIKI_SPECIAL.add(_suffix)          # matched by suffix below
 
 
+# 染料的 data 值 → 贴图文件（Bedrock 的经典顺序，与 item_texture 列表下标无关）
+DYE_BY_DATA = {
+    0: "dye_powder_black",
+    1: "dye_powder_red",
+    2: "dye_powder_green",
+    3: "dye_powder_brown",
+    4: "dye_powder_blue",
+    5: "dye_powder_purple",
+    6: "dye_powder_cyan",
+    7: "dye_powder_silver",
+    8: "dye_powder_gray",
+    9: "dye_powder_pink",
+    10: "dye_powder_lime",
+    11: "dye_powder_yellow",
+    12: "dye_powder_light_blue",
+    13: "dye_powder_magenta",
+    14: "dye_powder_orange",
+    15: "dye_powder_white",
+}
+
 # 桶的 data 值 → item_texture 里的键（顺序与列表不同，必须显式映射）
 # 桶的 data 值 → 贴图文件（顺序与 item_texture 列表不同，必须显式映射）。
 # 用户实测：空 0 / 奶 1 / 水 8 / 岩浆 10 / 细雪 11。
@@ -415,9 +436,7 @@ class Assets:
                 self.blocks.update(bj)
         # 基岩版全部标签 → 成员（build_tag_db.py 从维基 Module:GameTag/RelOriBE 生成）
         self.tag_db: dict = {}
-        for base in (self.bundle_root, self.tool_root,
-                     os.path.dirname(os.path.abspath(__file__)),
-                     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))):
+        for base in self.resource_roots():
             if not base:
                 continue
             fp = os.path.join(base, "tags_be.json")
@@ -430,9 +449,7 @@ class Assets:
                     self.tag_db = data
                 break
         # 原版物品/方块定义表（fetch_vanilla_kinds.py 生成，含个别手工修正）
-        for base in (self.bundle_root, self.tool_root,
-                     os.path.dirname(os.path.abspath(__file__)),
-                     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))):
+        for base in self.resource_roots():
             if not base:
                 continue
             fp = os.path.join(base, "vanilla_kinds.json")
@@ -592,9 +609,7 @@ class Assets:
     def pinned_icon(self, name: str):
         """人工钉死的物品图标（wiki_pinned/）：优先级最高，联网抓取也覆盖不了。"""
         key = name.split(":")[-1]
-        for base in (self.bundle_root, self.tool_root,
-                     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                     os.path.dirname(os.path.abspath(__file__))):
+        for base in self.resource_roots():
             if not base:
                 continue
             for cand in (key, name.replace(":", "__")):
@@ -604,6 +619,25 @@ class Assets:
                     if img is not None:
                         return img
         return None
+
+    def resource_roots(self) -> list:
+        """查资源时要看的所有根目录。
+
+        PyInstaller 打包后，--add-data 的内容被解压到 sys._MEIPASS ——
+        之前只找 bundle_root/tool_root，导致 exe 里读不到 wiki_pinned / tags_be.json。
+        """
+        bases = [self.bundle_root, self.tool_root,
+                 os.path.dirname(os.path.abspath(__file__)),
+                 os.path.dirname(os.path.dirname(os.path.abspath(__file__)))]
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            bases += [meipass, os.path.join(meipass, "mcrender")]
+        bases.append(os.getcwd())
+        out = []
+        for b in bases:
+            if b and b not in out:
+                out.append(b)
+        return out
 
     def kind_of(self, name: str) -> str:
         """物品还是方块？附加包定义 minecraft:item / minecraft:block 优先，
@@ -995,6 +1029,15 @@ class Assets:
         #    文章插图），所以这里拿到的要么是游戏物品栏图标，要么就是没有。
         #    离线时 offline=True → 只查本地缓存，不会联网。
         kind = self.kind_of(name)
+        # 1b. 染料：data 值也走显式映射（不能拿列表下标当 data）
+        if name in ("dye", "dye_powder") and variant is not None and str(variant).isdigit():
+            fname = DYE_BY_DATA.get(int(variant))
+            if fname:
+                img = (self._image(self.find_file(f"textures/items/{fname}"))
+                       or self._image(self.find_file(f"textures/items/{fname.replace('dye_powder', 'dye')}")))
+                if img is not None:
+                    return Icon(ident, "item", item=img, note=f"dye data {variant}")
+
         # 1c. 桶：data 值走显式映射（列表下标与 data 值并不一致）
         if name == "bucket" and variant is not None and str(variant).isdigit():
             fname = BUCKET_BY_DATA.get(int(variant))
