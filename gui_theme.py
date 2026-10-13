@@ -170,7 +170,13 @@ def apply(root, dark: bool, skip=()) -> dict:
                             activebackground=c["accent"], activeforeground=c["accent_fg"],
                             highlightbackground=c["border"])
             elif cls in ("Text", "Listbox"):
-                w.configure(bg=c["log_bg"], fg=c["log_fg"], insertbackground=c["fg"])
+                w.configure(bg=c["log_bg"], fg=c["log_fg"],
+                            insertbackground=c["log_fg"])
+                try:
+                    # 只读日志不需要光标；默认的方块光标在浅色卡片上像一块黑斑
+                    w.configure(insertwidth=0 if str(w.cget("state")) == "disabled" else 1)
+                except Exception:
+                    pass
             elif cls in ("Checkbutton", "Radiobutton"):
                 w.configure(bg=base, fg=c["fg"], activebackground=base,
                             activeforeground=c["fg"], selectcolor=c["panel"],
@@ -181,7 +187,9 @@ def apply(root, dark: bool, skip=()) -> dict:
                             highlightbackground=base, highlightthickness=0,
                             bd=0, relief="flat", elementborderwidth=0)
             elif cls in ("Entry", "Spinbox"):
-                w.configure(bg=c["panel"], fg=c["fg"], insertbackground=c["fg"])
+                w.configure(bg=c["panel"], fg=c["fg"], insertbackground=c["fg"],
+                            insertwidth=1, highlightthickness=0, bd=0,
+                            relief="flat")
         except Exception:
             pass
     return c
@@ -403,23 +411,19 @@ def switch(parent, value=False, command=None, dark=False, width=54, height=28):
         r = (h - 2) / 2.0
         x1, y1, x2, y2 = 1, 1, w - 1, h - 1
         track = c["accent"] if cv._on else c.get("track_off", "#8a8f98")
-        kr = r - 2
-        cx = (x2 - r - 1) if cv._on else (x1 + r + 1)
-        cy = (y1 + y2) / 2.0
-        if not ids:                                   # 首次建图元
-            ids["l"] = cv.create_oval(x1, y1, x1 + 2 * r, y2, fill=track, outline="")
-            ids["r"] = cv.create_oval(x2 - 2 * r, y1, x2, y2, fill=track, outline="")
-            ids["m"] = cv.create_rectangle(x1 + r, y1, x2 - r, y2, fill=track, outline="")
-            ids["knob"] = cv.create_oval(cx - kr, cy - kr, cx + kr, cy + kr,
-                                         fill="#ffffff", outline="#c9ccd2")
+        r = (h - 2) / 2.0
+        # 用一个"胶囊多边形 + smooth"画轨道：tk 没有抗锯齿，拼接的圆弧会出阶梯
+        pts = [x1 + r, y1, x2 - r, y1, x2, y1 + r, x2, y2 - r, x2 - r, y2,
+               x1 + r, y2, x1, y2 - r, x1, y1 + r]
+        if not ids:
+            ids["track"] = cv.create_polygon(pts, fill=track, outline="", smooth=True)
+            ids["knob"] = cv.create_oval(0, 0, 0, 0, fill="#ffffff", outline="")
             return
-        # 关键：布局完成后尺寸才会变（首次 redraw 时 width 可能只有 1px），
-        # 所以这里必须**连坐标一起更新**，不能只改颜色。
-        cv.coords(ids["l"], x1, y1, x1 + 2 * r, y2)
-        cv.coords(ids["r"], x2 - 2 * r, y1, x2, y2)
-        cv.coords(ids["m"], x1 + r, y1, x2 - r, y2)
-        for k in ("l", "r", "m"):
-            cv.itemconfigure(ids[k], fill=track)
+        cv.coords(ids["track"], *pts)
+        cv.itemconfigure(ids["track"], fill=track)
+        kr = r - 1.5
+        cx = (x2 - r) if cv._on else (x1 + r)
+        cy = (y1 + y2) / 2.0
         cv.coords(ids["knob"], cx - kr, cy - kr, cx + kr, cy + kr)
 
     def toggle(_e=None):
