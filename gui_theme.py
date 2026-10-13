@@ -163,8 +163,16 @@ def apply(root, dark: bool, skip=()) -> dict:
         try:
             if cls in ("Frame", "Toplevel", "Labelframe"):
                 w.configure(bg=base)
+                try:
+                    w.configure(highlightthickness=0, bd=0)   # 默认 1px 高亮边框 → 圆角处的黑角
+                except Exception:
+                    pass
             elif cls == "Label":
                 w.configure(bg=base, fg=c["fg"])
+                try:
+                    w.configure(highlightthickness=0, bd=0)
+                except Exception:
+                    pass
             elif cls == "Button":
                 w.configure(bg=c["panel"], fg=c["fg"],
                             activebackground=c["accent"], activeforeground=c["accent_fg"],
@@ -232,12 +240,12 @@ def _draw_icon(cv, store, cx, cy, colour, dark, kind_bg=None):
     dark=False → 画月亮（缺角圆）
     """
     if dark:
-        r = 4
+        r = 3.5
         store.append(cv.create_oval(cx - r, cy - r, cx + r, cy + r, fill=colour, outline=""))
         for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0),
                        (-0.7, -0.7), (0.7, -0.7), (-0.7, 0.7), (0.7, 0.7)):
-            store.append(cv.create_line(cx + dx * 6, cy + dy * 6,
-                                        cx + dx * 8, cy + dy * 8,
+            store.append(cv.create_line(cx + dx * 5.5, cy + dy * 5.5,
+                                        cx + dx * 7.5, cy + dy * 7.5,
                                         fill=colour, width=1))
     else:
         # 月牙 = 实心圆 + 用按钮底色再画一个偏右的圆盖住一部分
@@ -412,15 +420,17 @@ def switch(parent, value=False, command=None, dark=False, width=54, height=28):
         x1, y1, x2, y2 = 1, 1, w - 1, h - 1
         track = c["accent"] if cv._on else c.get("track_off", "#8a8f98")
         r = (h - 2) / 2.0
-        # 用一个"胶囊多边形 + smooth"画轨道：tk 没有抗锯齿，拼接的圆弧会出阶梯
-        pts = [x1 + r, y1, x2 - r, y1, x2, y1 + r, x2, y2 - r, x2 - r, y2,
-               x1 + r, y2, x1, y2 - r, x1, y1 + r]
         if not ids:
-            ids["track"] = cv.create_polygon(pts, fill=track, outline="", smooth=True)
+            ids["l"] = cv.create_oval(x1, y1, x1 + 2 * r, y2, fill=track, outline="")
+            ids["r"] = cv.create_oval(x2 - 2 * r, y1, x2, y2, fill=track, outline="")
+            ids["m"] = cv.create_rectangle(x1 + r, y1, x2 - r, y2, fill=track, outline="")
             ids["knob"] = cv.create_oval(0, 0, 0, 0, fill="#ffffff", outline="")
             return
-        cv.coords(ids["track"], *pts)
-        cv.itemconfigure(ids["track"], fill=track)
+        cv.coords(ids["l"], x1, y1, x1 + 2 * r, y2)
+        cv.coords(ids["r"], x2 - 2 * r, y1, x2, y2)
+        cv.coords(ids["m"], x1 + r, y1, x2 - r, y2)
+        for k in ("l", "r", "m"):
+            cv.itemconfigure(ids[k], fill=track)
         kr = r - 1.5
         cx = (x2 - r) if cv._on else (x1 + r)
         cy = (y1 + y2) / 2.0
