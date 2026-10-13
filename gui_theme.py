@@ -236,38 +236,47 @@ def pill(parent, text, command, dark=False, kind="ghost"):
 def card(parent, dark=False, radius=12, pad=10):
     """一张圆角卡片，返回 (canvas, 内容 frame)。
 
-    Canvas 必须显式给高（否则塌成一条），所以内容 frame 尺寸一变就同步高度；
-    内嵌窗口的宽度也要跟着 Canvas 走，不然内容只有 1px 宽。
+    - 颜色以 **cv._dark** 为准（不能用创建时的闭包值，否则切主题后边框仍是旧色，
+      亮色下就出现"黑框"）
+    - Canvas 必须显式给高，所以内容 frame 尺寸一变就同步高度
+    - 内嵌窗口宽度跟随 Canvas
     """
     import tkinter as tk
-    c = palette(dark)
-    cv = tk.Canvas(parent, highlightthickness=0, bd=0, bg=c["bg"], height=40)
-    inner = tk.Frame(cv, bg=c["panel"])
+    cv = tk.Canvas(parent, highlightthickness=0, bd=0, bg=palette(dark)["bg"], height=40)
+    cv._dark = bool(dark)
+    inner = tk.Frame(cv, bg=palette(dark)["panel"])
     win = cv.create_window(pad, pad, window=inner, anchor="nw")
 
     def redraw(_e=None):
-        cc = palette(dark)
+        cc = palette(cv._dark)
         cv.configure(bg=cc["bg"])
+        try:
+            inner.configure(bg=cc["panel"])
+        except Exception:
+            pass
         w, h = cv.winfo_width() or 600, cv.winfo_height() or 40
         cv.delete("shape")
         round_rect(cv, 1, 1, w - 1, h - 1, radius, fill=cc["panel"], outline=cc["border"])
-        cv.tag_lower("shape")                       # 背景压到内容下面
+        cv.tag_lower("shape")
         cv.itemconfigure(win, width=max(1, w - 2 * pad))
 
     def fit(_e=None):
         cv.configure(height=max(40, inner.winfo_reqheight() + 2 * pad))
 
+    def set_theme(is_dark):
+        cv._dark = bool(is_dark)
+        redraw()
+
     cv.bind("<Configure>", redraw)
     inner.bind("<Configure>", fit)
     inner.bind("<Configure>", redraw, add="+")
+    cv._set_theme = set_theme
     redraw()
     return cv, inner
 
 
-
-
-def switch(parent, value=False, command=None, dark=False, width=52, height=28):
-    """自绘开关（替代 tkinter 的 ✓ 方框，观感与参考图一致）。"""
+def switch(parent, value=False, command=None, dark=False, width=54, height=28):
+    """自绘开关（替代 tkinter 的 ✓ 方框）。轨道=两端半圆+中间矩形，旋钮=整圆。"""
     import tkinter as tk
     cv = tk.Canvas(parent, width=width, height=height, highlightthickness=0, bd=0,
                    bg=palette(dark)["bg"])
@@ -281,13 +290,19 @@ def switch(parent, value=False, command=None, dark=False, width=52, height=28):
         cv.delete("all")
         w = cv.winfo_width() or width
         h = cv.winfo_height() or height
-        r = h / 2
+        r = (h - 2) / 2.0
+        x1, y1, x2, y2 = 1, 1, w - 1, h - 1
         track = c["accent"] if cv._on else c["border"]
-        round_rect(cv, 1, 1, w - 1, h - 1, r, fill=track)
-        cx = (w - r) if cv._on else r
-        pad = max(2, r * 0.18)
-        cv.create_oval(cx - r + pad, pad + 1, cx + r - pad, h - pad - 1,
-                       fill="#ffffff", outline="")
+        # 轨道：中间矩形 + 两端半圆（比圆角矩形更平滑）
+        cv.create_oval(x1, y1, x1 + 2 * r, y2, fill=track, outline="")
+        cv.create_oval(x2 - 2 * r, y1, x2, y2, fill=track, outline="")
+        cv.create_rectangle(x1 + r, y1, x2 - r, y2, fill=track, outline="")
+        # 旋钮：整圆，略内缩，带一圈浅描边更顺眼
+        kr = r - 2
+        cx = (x2 - r - 1) if cv._on else (x1 + r + 1)
+        cy = (y1 + y2) / 2.0
+        cv.create_oval(cx - kr, cy - kr, cx + kr, cy + kr,
+                       fill="#ffffff", outline="#c9ccd2")
 
     def toggle(_e=None):
         cv._on = not cv._on
@@ -298,14 +313,13 @@ def switch(parent, value=False, command=None, dark=False, width=52, height=28):
             except Exception:
                 pass
 
-    cv.bind("<Button-1>", toggle)
-    cv.bind("<Configure>", redraw)
-    cv.bind("<Enter>", lambda _e: cv.configure(cursor="hand2"))
-
     def set_theme(is_dark):
         cv._dark = bool(is_dark)
         redraw()
 
+    cv.bind("<Button-1>", toggle)
+    cv.bind("<Configure>", redraw)
+    cv.bind("<Enter>", lambda _e: cv.configure(cursor="hand2"))
     cv._set_theme = set_theme
     cv.get = lambda: cv._on
     redraw()

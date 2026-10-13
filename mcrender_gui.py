@@ -524,6 +524,9 @@ def run_gui(paths):
     save_config(cfg)
 
     def _toggle_theme():
+        # 连点保护：上一次重绘还没落定就再点，会递归重入把界面搞坏
+        if state.get("_applying"):
+            return
         _apply_theme(not state.get("dark", False))
 
     theme_btn = gui_theme.pill(root, ("☀ 浅色" if dark else "🌙 深色"),
@@ -943,6 +946,21 @@ def run_gui(paths):
     if entries["vanilla"].get().strip():
         check_vanilla_pack()
     def _apply_theme(is_dark: bool) -> None:
+        if state.get("_applying"):          # 重入保护
+            return
+        state["_applying"] = True
+        try:
+            _apply_theme_inner(is_dark)
+        finally:
+            state["_applying"] = False
+
+    def _apply_theme_inner(is_dark: bool) -> None:
+        for job in state.get("_theme_jobs", []):     # 取消挂起的延迟重刷
+            try:
+                root.after_cancel(job)
+            except Exception:
+                pass
+        state["_theme_jobs"] = []
         c = gui_theme.apply(root, is_dark, skip=(main_btn,))
         try:                                # 主按钮：蓝底白字（与参考图一致）
             main_btn.configure(bg=c["accent"], fg=c["accent_fg"],
@@ -964,7 +982,7 @@ def run_gui(paths):
             pass
         for _w in (_paths_card, _opts_card, _log_card):
             try:
-                _w.event_generate("<Configure>")     # 卡片跟着换色
+                _w._set_theme(is_dark)               # 卡片换色（内部重绘，不触发事件洪水）
             except Exception:
                 pass
         try:
