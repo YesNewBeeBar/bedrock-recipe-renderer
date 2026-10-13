@@ -530,8 +530,27 @@ def run_gui(paths):
                                _toggle_theme, dark=dark, kind="ghost")
     theme_btn.place(relx=1.0, x=-12, y=12, anchor="ne", width=96)
 
-    tk.Label(root, text="合成表生成器", font=("Microsoft YaHei UI", 14, "bold")).pack(pady=(10, 2))
-    tk.Label(root, text="选好 BP 和 RP，再拖配方进来（或点开始出图）", fg="#555555").pack()
+    head = tk.Frame(root)
+    head.pack(fill="x", padx=14, pady=(10, 2))
+    _logo = None
+    try:                                    # 左上角图标（复用 App 自己的 icon.png）
+        _png = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "icon.png")
+        if not os.path.isfile(_png):
+            _png = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.png")
+        if os.path.isfile(_png):
+            _logo = tk.PhotoImage(file=_png)
+            factor = max(1, _logo.width() // 30)
+            if factor > 1:
+                _logo = _logo.subsample(factor, factor)
+            tk.Label(head, image=_logo).pack(side="left", padx=(0, 10))
+    except Exception:
+        _logo = None
+    _col = tk.Frame(head)
+    _col.pack(side="left", anchor="w")
+    tk.Label(_col, text="合成表生成器",
+             font=("Microsoft YaHei UI", 15, "bold")).pack(anchor="w")
+    tk.Label(_col, text="基岩版配方 → 游戏内界面 PNG",
+             font=("Microsoft YaHei UI", 9)).pack(anchor="w")
     drop = tk.Canvas(root, height=92, highlightthickness=0, bd=0)
 
     def _draw_drop(_e=None):
@@ -848,8 +867,9 @@ def run_gui(paths):
 
     bar2 = tk.Frame(root)
     bar2.pack(fill="x", padx=12, pady=(0, 10))
-    tk.Button(bar2, text="▶ 开始出图（当前 BP + RP 的全部配方）", command=start_all,
-              font=("Microsoft YaHei UI", 9, "bold")).pack(side="left")
+    main_btn = tk.Button(bar2, text="▶ 开始出图（当前 BP + RP 的全部配方）",
+                         command=start_all, relief="flat", bd=0, padx=14, pady=6)
+    main_btn.pack(side="left")
     tk.Button(bar2, text="补全原版资源（下载全部纹理）", command=sync_vanilla).pack(side="left", padx=6)
     tk.Button(bar2, text="删除本地纹理缓存", command=clear_texture_cache).pack(side="left")
     tk.Button(bar2, text="打开输出文件夹", command=open_out).pack(side="left")
@@ -893,8 +913,9 @@ def run_gui(paths):
 
         proc = WNDPROC(wndproc)
         old_proc = user32.SetWindowLongPtrW(hwnd, GWLP_WNDPROC, proc)
-        drop.config(text="↓  将 [json / .mcaddon / .mcpack / zip / 文件夹] 拖入窗口  ↓",
-                    bg="#dff0d8")
+        # drop 现在是 Canvas（文字由 _draw_drop 自己画）；之前这里用 Label 的
+        # config(text=…) 会抛 "unknown option -text" 并让拖放注册整体失败。
+        state["drag_ok"] = True
     except Exception as exc:                                    # pragma: no cover
         write(f"（窗口拖放不可用，请用下面的按钮：{exc}）")
 
@@ -904,7 +925,13 @@ def run_gui(paths):
     if entries["vanilla"].get().strip():
         check_vanilla_pack()
     def _apply_theme(is_dark: bool) -> None:
-        gui_theme.apply(root, is_dark)
+        c = gui_theme.apply(root, is_dark, skip=(main_btn,))
+        try:                                # 主按钮：蓝底白字（与参考图一致）
+            main_btn.configure(bg=c["accent"], fg=c["accent_fg"],
+                               activebackground=c["accent"], activeforeground=c["accent_fg"],
+                               font=("Microsoft YaHei UI", 10, "bold"), cursor="hand2")
+        except Exception:
+            pass
         cfg["theme"] = "dark" if is_dark else "light"
         save_config(cfg)
         state["dark"] = is_dark
