@@ -23,7 +23,9 @@ def _boot(step: str) -> None:
                  _os_boot.path.join(_os_boot.path.dirname(
                      _os_boot.path.abspath(__file__)), "crash.log")):
         try:
-            with open(path, "a", encoding="utf-8") as fh:
+            # 第一次路标（步骤 1）用 "w" 清空旧日志：否则上次的报错会一直留着
+            mode = "w" if step.startswith("1 ") else "a"
+            with open(path, mode, encoding="utf-8") as fh:
                 fh.write("[boot] " + step + chr(10))
             return
         except Exception:
@@ -78,7 +80,7 @@ from platform_layer import remember
 from platform_layer import crashlog, paths as p_paths, perm, picking, storage  # noqa: E402
 
 ARCHIVE_EXT = (".zip", ".mcaddon", ".mcpack", ".mcworld", ".mcproject")
-APP_VERSION = "1.2.8"          # 界面会显示，用来确认手机上跑的是哪一版
+APP_VERSION = "1.2.9"          # 界面会显示，用来确认手机上跑的是哪一版
 
 
 # ---------------------------------------------------------------- 外观（简洁现代）
@@ -123,8 +125,8 @@ def _round(widget, radius=10, color=(1, 1, 1, 1)):
     """给控件加圆角背景（默认按钮是方角灰块，这里统一成现代扁平样式）。"""
     from kivy.graphics import Color, RoundedRectangle
     with widget.canvas.before:
-        Color(*color)
-        rect = RoundedRectangle(radius=[dp(radius)])
+        col = Color(*color)                 # 必须保存 Color 本身：
+        rect = RoundedRectangle(radius=[dp(radius)])   # RoundedRectangle 没有 rgba ✗
 
     def _sync(*_a):
         rect.pos = widget.pos
@@ -133,7 +135,7 @@ def _round(widget, radius=10, color=(1, 1, 1, 1)):
     widget.bind(pos=_sync, size=_sync)
     _sync()
     widget._round_rect = rect
-    widget._round_color = widget.canvas.before.children[-1]
+    widget._round_color = col              # ← 之前存错成 RoundedRectangle，改主题时整段崩掉
     return rect
 
 

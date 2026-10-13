@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 基础主题：真正的配色由 Compose 的 Material3 主题接管 -->
+    <style name="Theme.BRR" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#14161A</item>
+        <item name="android:windowBackground">#14161A</item>
+    </style>
+</resources>
