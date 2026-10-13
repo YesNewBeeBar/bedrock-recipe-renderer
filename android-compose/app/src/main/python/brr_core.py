@@ -156,6 +156,34 @@ def render_files(bp_path, rp_path, vanilla_path, files, out_dir,
     if not dirs:
         logger.log("没有可处理的输入")
         return 0
-    return render(bp_path or dirs[0], rp_path, vanilla_path, dirs, out_dir,
+
+    # 解出来的目录里可能还套着 BP/RP：用核心自带的包识别（与桌面端同一份 packs.py）
+    try:
+        from mcrender import packs as _packs
+    except Exception:
+        _packs = None
+
+    targets = []
+    for d in dirs:
+        pairs, bps, rps = ([], [], [])
+        if _packs is not None:
+            try:
+                pairs, bps, rps = _packs.scan_packs(d)
+            except Exception:
+                pairs, bps, rps = ([], [], [])
+        if bps:
+            logger.log("包识别: BP %d 个 / RP %d 个" % (len(bps), len(rps)))
+            targets += list(bps)
+            if not bp_path:
+                bp_path = bps[0]
+            if not rp_path and rps:
+                rp_path = rps[0]
+        else:
+            targets.append(d)                 # 不是包就按普通配方目录处理
+
+    if not targets:
+        logger.log("没有可处理的输入")
+        return 0
+    return render(bp_path or targets[0], rp_path, vanilla_path, targets, out_dir,
                   scale, layout, shading, wiki_icons, local_only, logger, progress,
                   work_root, ext_root)

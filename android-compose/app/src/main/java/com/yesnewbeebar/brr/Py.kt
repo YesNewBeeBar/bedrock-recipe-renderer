@@ -56,7 +56,7 @@ object Py {
         onProgress: (Int, Int) -> Unit,
     ): Int {
         ensure(ctx)
-        val fn = module().get("render")
+        val fn = module().get("render") ?: return 0
         val progress = object {
             @Suppress("unused")
             fun onProgress(done: Int, total: Int) = onProgress(done, total)
@@ -86,7 +86,7 @@ object Py {
         onProgress: (Int, Int) -> Unit,
     ): Int {
         ensure(ctx)
-        val fn = module().get("render_files")
+        val fn = module().get("render_files") ?: return 0
         val progress = object {
             @Suppress("unused")
             fun onProgress(done: Int, total: Int) = onProgress(done, total)
