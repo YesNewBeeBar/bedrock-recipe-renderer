@@ -206,17 +206,33 @@ def pill(parent, text, command, dark=False, kind="ghost"):
     cv._text = text
     cv._kind = kind
 
+    ids = {}
+
     def redraw(_e=None):
         c = palette(cv._dark)
         bg = c["accent"] if cv._kind == "primary" else c["panel"]
         fg = c["accent_fg"] if cv._kind == "primary" else c["fg"]
         cv.configure(bg=c["bg"])
-        cv.delete("all")
         w = cv.winfo_width() or 120
-        round_rect(cv, 1, 1, w - 1, 33, 17, fill=bg,
-                   outline=None if cv._kind == "primary" else c["border"])
-        cv.create_text(w / 2, 17, text=cv._text, fill=fg,
-                       font=("Microsoft YaHei UI", 10))
+        if not ids:                                   # 首次建图元
+            shape = round_rect(cv, 1, 1, w - 1, 33, 17, fill=bg,
+                               outline=None if cv._kind == "primary" else c["border"])
+            ids["shape"] = shape
+            ids["text"] = cv.create_text(w / 2, 17, text=cv._text, fill=fg,
+                                         font=("Microsoft YaHei UI", 10))
+            return
+        for it in ids["shape"]:                       # 之后只改颜色
+            try:
+                if cv.type(it) == "arc":
+                    cv.itemconfigure(it, fill=bg)
+                    if cv._kind != "primary":
+                        cv.itemconfigure(it, outline=c["border"])
+                else:
+                    cv.itemconfigure(it, fill=bg)
+            except Exception:
+                pass
+        cv.itemconfigure(ids["text"], text=cv._text, fill=fg)
+        cv.coords(ids["text"], w / 2, 17)
 
     cv.bind("<Configure>", redraw)
     cv.bind("<Button-1>", lambda _e: command())
@@ -236,21 +252,21 @@ def pill(parent, text, command, dark=False, kind="ghost"):
     return cv
 
 
-def card(parent, dark=False, radius=12, pad=10):
-    """一张圆角卡片，返回 (canvas, 内容 frame)。
+def card(parent, dark=False, radius=12, pad=12):
+    """圆角卡片，返回 (canvas, 内容 frame)。
 
-    - 颜色以 **cv._dark** 为准（不能用创建时的闭包值，否则切主题后边框仍是旧色，
-      亮色下就出现"黑框"）
-    - Canvas 必须显式给高，所以内容 frame 尺寸一变就同步高度
-    - 内嵌窗口宽度跟随 Canvas
+    切主题时**只改颜色、不删除重建**（删除会露出一帧空白，切换时看着像"先白一下"）。
+    内容留 pad 的内边距，原生直角控件（Text/Combobox）就不会顶到圆角上。
     """
     import tkinter as tk
-    cv = tk.Canvas(parent, highlightthickness=0, bd=0, bg=palette(dark)["bg"], height=40)
+    c0 = palette(dark)
+    cv = tk.Canvas(parent, highlightthickness=0, bd=0, bg=c0["bg"], height=40)
     cv._dark = bool(dark)
-    inner = tk.Frame(cv, bg=palette(dark)["panel"])
+    inner = tk.Frame(cv, bg=c0["panel"])
     win = cv.create_window(pad, pad, window=inner, anchor="nw")
+    ids = {"fill": None, "line": []}
 
-    def redraw(_e=None):
+    def draw(_e=None):
         cc = palette(cv._dark)
         cv.configure(bg=cc["bg"])
         try:
@@ -258,25 +274,40 @@ def card(parent, dark=False, radius=12, pad=10):
         except Exception:
             pass
         w, h = cv.winfo_width() or 600, cv.winfo_height() or 40
-        cv.delete("shape")
-        # 填满整块（留边会在深色下露出 1px 白线），描边再往里收 1px
-        round_rect(cv, 0, 0, w, h, radius, fill=cc["panel"])
-        round_rect(cv, 1, 1, w - 1, h - 1, radius, outline=cc["border"])
-        cv.tag_lower("shape")
         cv.itemconfigure(win, width=max(1, w - 2 * pad))
+        if ids["fill"] is None:                       # 首次：建好所有图元
+            items = round_rect(cv, 0, 0, w, h, radius, fill=cc["panel"])
+            ids["fill"] = items[0]
+            ids["line"] = round_rect(cv, 1, 1, w - 1, h - 1, radius, outline=cc["border"])
+            cv.tag_lower(ids["fill"])
+            for it in ids["line"]:
+                cv.tag_raise(it, ids["fill"])
+            return
+        # 之后：只改颜色和几何，绝不删除（没有空白帧）
+        cv.coords(ids["fill"], 0, 0, w, h) if False else None
+        cv.itemconfigure(ids["fill"], fill=cc["panel"])
+        col = cc["border"]
+        for it in ids["line"]:
+            try:
+                if cv.type(it) == "arc":
+                    cv.itemconfigure(it, outline=col)
+                else:
+                    cv.itemconfigure(it, fill=col)
+            except Exception:
+                pass
 
-    def fit(_e=None):
+    def refit(_e=None):
         cv.configure(height=max(40, inner.winfo_reqheight() + 2 * pad))
 
     def set_theme(is_dark):
         cv._dark = bool(is_dark)
-        redraw()
+        draw()
 
-    cv.bind("<Configure>", redraw)
-    inner.bind("<Configure>", fit)
-    inner.bind("<Configure>", redraw, add="+")
+    cv.bind("<Configure>", draw)
+    inner.bind("<Configure>", refit)
+    inner.bind("<Configure>", draw, add="+")
     cv._set_theme = set_theme
-    redraw()
+    draw()
     return cv, inner
 
 
@@ -289,25 +320,29 @@ def switch(parent, value=False, command=None, dark=False, width=54, height=28):
     cv._on = bool(value)
     cv._command = command
 
+    ids = {}
+
     def redraw(_e=None):
         c = palette(cv._dark)
         cv.configure(bg=c["bg"])
-        cv.delete("all")
         w = cv.winfo_width() or width
         h = cv.winfo_height() or height
         r = (h - 2) / 2.0
         x1, y1, x2, y2 = 1, 1, w - 1, h - 1
         track = c["accent"] if cv._on else c["border"]
-        # 轨道：中间矩形 + 两端半圆（比圆角矩形更平滑）
-        cv.create_oval(x1, y1, x1 + 2 * r, y2, fill=track, outline="")
-        cv.create_oval(x2 - 2 * r, y1, x2, y2, fill=track, outline="")
-        cv.create_rectangle(x1 + r, y1, x2 - r, y2, fill=track, outline="")
-        # 旋钮：整圆，略内缩，带一圈浅描边更顺眼
         kr = r - 2
         cx = (x2 - r - 1) if cv._on else (x1 + r + 1)
         cy = (y1 + y2) / 2.0
-        cv.create_oval(cx - kr, cy - kr, cx + kr, cy + kr,
-                       fill="#ffffff", outline="#c9ccd2")
+        if not ids:                                   # 首次建图元
+            ids["l"] = cv.create_oval(x1, y1, x1 + 2 * r, y2, fill=track, outline="")
+            ids["r"] = cv.create_oval(x2 - 2 * r, y1, x2, y2, fill=track, outline="")
+            ids["m"] = cv.create_rectangle(x1 + r, y1, x2 - r, y2, fill=track, outline="")
+            ids["knob"] = cv.create_oval(cx - kr, cy - kr, cx + kr, cy + kr,
+                                         fill="#ffffff", outline="#c9ccd2")
+            return
+        for k in ("l", "r", "m"):                     # 之后只改颜色/位置
+            cv.itemconfigure(ids[k], fill=track)
+        cv.coords(ids["knob"], cx - kr, cy - kr, cx + kr, cy + kr)
 
     def toggle(_e=None):
         cv._on = not cv._on

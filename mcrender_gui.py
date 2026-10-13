@@ -991,8 +991,17 @@ def run_gui(paths):
             pass
 
     state["dark"] = dark
-    _apply_theme(dark)          # 胶囊按钮的点击已在 gui_theme.pill 里绑定
-    state["_theme_jobs"] = gui_theme.apply_later(root, dark)   # 记下 job，便于取消
+    state["_startup"] = True
+    _apply_theme(dark)
+    state["_startup"] = False          # 胶囊按钮的点击已在 gui_theme.pill 里绑定
+    # 只有**启动**时才需要延后补刷（控件是边建边出现的）；
+    # 用户手动切换时再排延迟任务只会造成闪烁。
+    if state.get("_startup"):
+        state["_theme_jobs"] = gui_theme.apply_later(root, dark)
+    try:
+        root.update_idletasks()
+    except Exception:
+        pass
 
     root.mainloop()
 
