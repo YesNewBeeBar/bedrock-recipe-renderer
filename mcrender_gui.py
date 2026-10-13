@@ -528,7 +528,7 @@ def run_gui(paths):
 
     theme_btn = gui_theme.pill(root, ("☀ 浅色" if dark else "🌙 深色"),
                                _toggle_theme, dark=dark, kind="ghost")
-    theme_btn.place(relx=1.0, x=-12, y=12, anchor="ne", width=96)
+    theme_btn.place(relx=1.0, x=-14, y=14, anchor="ne", width=104, height=36)
 
     head = tk.Frame(root)
     head.pack(fill="x", padx=14, pady=(10, 2))
@@ -569,8 +569,8 @@ def run_gui(paths):
     drop.pack(fill="x", padx=12, pady=10)
     state["_draw_drop"] = _draw_drop
 
-    paths_frame = tk.Frame(root)
-    paths_frame.pack(fill="x", padx=12)
+    _paths_card, paths_frame = gui_theme.card(root, dark)
+    _paths_card.pack(fill="x", padx=12, pady=(6, 2))
     paths_frame.columnconfigure(1, weight=1)
     entries = {}
 
@@ -942,6 +942,10 @@ def run_gui(paths):
             pass
         try:
             state["_draw_drop"]()          # 拖放卡跟着换色
+        except Exception:
+            pass
+        try:
+            _paths_card.event_generate("<Configure>")
         except Exception:
             pass
 

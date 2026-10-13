@@ -233,21 +233,34 @@ def pill(parent, text, command, dark=False, kind="ghost"):
     return cv
 
 
-def card(parent, dark=False, radius=12, pad=0):
-    """一张圆角卡片，返回 (canvas, 内容 frame)。"""
+def card(parent, dark=False, radius=12, pad=10):
+    """一张圆角卡片，返回 (canvas, 内容 frame)。
+
+    Canvas 必须显式给高（否则塌成一条），所以内容 frame 尺寸一变就同步高度；
+    内嵌窗口的宽度也要跟着 Canvas 走，不然内容只有 1px 宽。
+    """
     import tkinter as tk
     c = palette(dark)
-    cv = tk.Canvas(parent, highlightthickness=0, bd=0, bg=c["bg"])
+    cv = tk.Canvas(parent, highlightthickness=0, bd=0, bg=c["bg"], height=40)
     inner = tk.Frame(cv, bg=c["panel"])
+    win = cv.create_window(pad, pad, window=inner, anchor="nw")
 
     def redraw(_e=None):
+        cc = palette(dark)
+        cv.configure(bg=cc["bg"])
+        w, h = cv.winfo_width() or 600, cv.winfo_height() or 40
         cv.delete("shape")
-        w, h = cv.winfo_width(), cv.winfo_height()
-        round_rect(cv, 1, 1, w - 1, h - 1, radius, fill=c["panel"], outline=c["border"])
-        cv.tag_lower("shape")
+        round_rect(cv, 1, 1, w - 1, h - 1, radius, fill=cc["panel"], outline=cc["border"])
+        cv.tag_lower("shape")                       # 背景压到内容下面
+        cv.itemconfigure(win, width=max(1, w - 2 * pad))
+
+    def fit(_e=None):
+        cv.configure(height=max(40, inner.winfo_reqheight() + 2 * pad))
 
     cv.bind("<Configure>", redraw)
-    cv.create_window(pad + 8, pad + 6, window=inner, anchor="nw",
-                     width=max(1, cv.winfo_width() - 2 * pad - 16))
+    inner.bind("<Configure>", fit)
+    inner.bind("<Configure>", redraw, add="+")
     redraw()
     return cv, inner
+
+
