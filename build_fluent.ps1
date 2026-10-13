@@ -36,7 +36,7 @@ $args += "mcrender_fluent.py"
 Write-Output "=== PyInstaller start ==="
 & $py @args 2>&1 | Select-Object -Last 12
 if ($LASTEXITCODE -ne 0) { Write-Output "[FAILED] exit=$LASTEXITCODE"; exit 1 }
-$exe = "dist\$name.exe"
+$exe = "dist\$name\$name.exe"   # onedir: exe 在子目录里
 if (Test-Path $exe) {
   $f = Get-Item $exe
   Write-Output ("=== OK: {0}  {1:N1} MB ===" -f $exe, ($f.Length / 1MB))

@@ -124,6 +124,9 @@ class MainWindow(QWidget):
         self.bridge.finished.connect(self._finished)
         self.busy = False
 
+        # 普通 QWidget 不会被 Fluent 主题自动上底色 —— 不设的话浅色模式下
+        # 窗口仍是系统深色，深色文字就糊在深底上了
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self.setWindowTitle(f"合成表生成器 v{APP_VERSION}")
         ip = icon_path()
         if ip and os.path.isfile(ip):
@@ -273,11 +276,23 @@ class MainWindow(QWidget):
             save_config(self.cfg)
         setTheme(Theme.DARK if t == "dark" else Theme.LIGHT)
         self.theme_sw.setChecked(t == "dark")
+        self._paint_bg()
+
+    def _paint_bg(self):
+        """窗口底色：浅色用近白，深色用近黑（可由这里统一调整）。"""
+        bg = "#202020" if isDarkTheme() else "#fbfbfd"
+        self.setStyleSheet(f"MainWindow {{ background: {bg}; }}")
+        try:
+            self.drop.setStyleSheet("")
+            self.update()
+        except Exception:
+            pass
 
     def _toggle_theme(self, dark: bool):
         setTheme(Theme.DARK if dark else Theme.LIGHT)
         self.cfg["theme"] = "dark" if dark else "light"
         save_config(self.cfg)
+        self._paint_bg()
 
     # ------------------------------------------------------------------ 工具
     def _log(self, text: str):
