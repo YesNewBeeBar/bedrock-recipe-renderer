@@ -11,11 +11,13 @@ import sys
 LIGHT = {
     "bg": "#f7f7f9", "panel": "#ffffff", "fg": "#000000", "dim": "#3a3d44",
     "accent": "#2f7cf6", "accent_fg": "#ffffff", "border": "#d8dade",
+    "track_off": "#b9bec7",
     "log_bg": "#ffffff", "log_fg": "#111318",
 }
 DARK = {
     "bg": "#16181c", "panel": "#1e2126", "fg": "#eef0f4", "dim": "#b9bec7",
     "accent": "#3d6fbf", "accent_fg": "#ffffff", "border": "#2c3138",
+    "track_off": "#6b7280",
     "log_bg": "#14161a", "log_fg": "#dfe3ea",
 }
 
@@ -194,6 +196,31 @@ def round_rect(canvas, x1, y1, x2, y2, r, fill=None, outline=None, width=1, dash
     return items
 
 
+def _draw_icon(cv, store, cx, cy, colour, dark, kind_bg=None):
+    """在胶囊里画"太阳/月亮"：不依赖字体，避免 emoji 变成方框。
+
+    dark=True（当前是深色，按钮提示切到浅色）→ 画太阳
+    dark=False → 画月亮（缺角圆）
+    """
+    if dark:
+        r = 4
+        store.append(cv.create_oval(cx - r, cy - r, cx + r, cy + r, fill=colour, outline=""))
+        for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0),
+                       (-0.7, -0.7), (0.7, -0.7), (-0.7, 0.7), (0.7, 0.7)):
+            store.append(cv.create_line(cx + dx * 6, cy + dy * 6,
+                                        cx + dx * 8, cy + dy * 8,
+                                        fill=colour, width=1))
+    else:
+        # 月牙 = 实心圆 + 用按钮底色再画一个偏右的圆盖住一部分
+        r = 6
+        bg = kind_bg or palette(dark)["panel"]
+        store.append(cv.create_oval(cx - r, cy - r, cx + r, cy + r,
+                                    fill=colour, outline=""))
+        store.append(cv.create_oval(cx - r + 4, cy - r - 1, cx + r + 4, cy + r - 1,
+                                    fill=bg, outline=bg))
+    return store
+
+
 def pill(parent, text, command, dark=False, kind="ghost"):
     """胶囊按钮：kind=primary(蓝底白字) / ghost(面板底描边)。
 
@@ -218,8 +245,10 @@ def pill(parent, text, command, dark=False, kind="ghost"):
             shape = round_rect(cv, 1, 1, w - 1, 33, 17, fill=bg,
                                outline=None if cv._kind == "primary" else c["border"])
             ids["shape"] = shape
-            ids["text"] = cv.create_text(w / 2, 17, text=cv._text, fill=fg,
+            ids["icon"] = []                          # 图标图元（自己画，不用 emoji）
+            ids["text"] = cv.create_text(w / 2 + 10, 17, text=cv._text, fill=fg,
                                          font=("Microsoft YaHei UI", 10))
+            _draw_icon(cv, ids["icon"], 20, 17, fg, dark, bg)
             return
         for it in ids["shape"]:                       # 之后只改颜色
             try:
@@ -232,7 +261,11 @@ def pill(parent, text, command, dark=False, kind="ghost"):
             except Exception:
                 pass
         cv.itemconfigure(ids["text"], text=cv._text, fill=fg)
-        cv.coords(ids["text"], w / 2, 17)
+        cv.coords(ids["text"], w / 2 + 10, 17)
+        for it in ids["icon"]:
+            cv.delete(it)
+        ids["icon"] = []
+        _draw_icon(cv, ids["icon"], 20, 17, fg, cv._dark, bg)
 
     cv.bind("<Configure>", redraw)
     cv.bind("<Button-1>", lambda _e: command())
@@ -252,7 +285,7 @@ def pill(parent, text, command, dark=False, kind="ghost"):
     return cv
 
 
-def card(parent, dark=False, radius=12, pad=12):
+def card(parent, dark=False, radius=12, pad=16):
     """圆角卡片，返回 (canvas, 内容 frame)。
 
     切主题时**只改颜色、不删除重建**（删除会露出一帧空白，切换时看着像"先白一下"）。
@@ -329,7 +362,7 @@ def switch(parent, value=False, command=None, dark=False, width=54, height=28):
         h = cv.winfo_height() or height
         r = (h - 2) / 2.0
         x1, y1, x2, y2 = 1, 1, w - 1, h - 1
-        track = c["accent"] if cv._on else c["border"]
+        track = c["accent"] if cv._on else c.get("track_off", "#8a8f98")
         kr = r - 2
         cx = (x2 - r - 1) if cv._on else (x1 + r + 1)
         cy = (y1 + y2) / 2.0
