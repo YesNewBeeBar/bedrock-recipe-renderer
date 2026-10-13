@@ -11,13 +11,13 @@ import sys
 LIGHT = {
     "bg": "#f7f7f9", "panel": "#ffffff", "fg": "#000000", "dim": "#3a3d44",
     "accent": "#2f7cf6", "accent_fg": "#ffffff", "border": "#d8dade",
-    "track_off": "#b9bec7",
+    "track_off": "#9aa0aa",
     "log_bg": "#ffffff", "log_fg": "#111318",
 }
 DARK = {
     "bg": "#16181c", "panel": "#1e2126", "fg": "#eef0f4", "dim": "#b9bec7",
     "accent": "#3d6fbf", "accent_fg": "#ffffff", "border": "#2c3138",
-    "track_off": "#6b7280",
+    "track_off": "#7b8390",
     "log_bg": "#14161a", "log_fg": "#dfe3ea",
 }
 
@@ -95,10 +95,23 @@ def apply(root, dark: bool, skip=()) -> dict:
             style.map(name, fieldbackground=[("!disabled", c["panel"])],
                       foreground=[("!disabled", c["fg"])],
                       background=[("!disabled", c["panel"])])
+        # Combobox 在 readonly 状态下会用到一堆子选项，少配一个就露白
+        for opt, val in (("fieldbackground", c["panel"]), ("background", c["panel"]),
+                         ("foreground", c["fg"]), ("arrowcolor", c["fg"]),
+                         ("bordercolor", c["border"]), ("lightcolor", c["panel"]),
+                         ("darkcolor", c["panel"]), ("selectbackground", c["panel"]),
+                         ("selectforeground", c["fg"]), ("insertcolor", c["fg"])):
+            try:
+                style.configure("TCombobox", **{opt: val})
+            except Exception:
+                pass
         style.map("TCombobox",
-                  fieldbackground=[("readonly", c["panel"]), ("!disabled", c["panel"])],
-                  foreground=[("readonly", c["fg"]), ("!disabled", c["fg"])],
-                  background=[("readonly", c["panel"]), ("!disabled", c["panel"])],
+                  fieldbackground=[("disabled", c["panel"]), ("readonly", c["panel"]),
+                                   ("active", c["panel"]), ("!disabled", c["panel"])],
+                  background=[("disabled", c["panel"]), ("readonly", c["panel"]),
+                              ("active", c["panel"]), ("!disabled", c["panel"])],
+                  foreground=[("disabled", c["dim"]), ("readonly", c["fg"]),
+                              ("!disabled", c["fg"])],
                   arrowcolor=[("!disabled", c["fg"])],
                   selectbackground=[("readonly", c["panel"])],
                   selectforeground=[("readonly", c["fg"])])
@@ -116,10 +129,12 @@ def apply(root, dark: bool, skip=()) -> dict:
     except Exception:
         pass
 
-    def walk(w):
-        yield w
+    def walk(w, on_card=False):
+        """on_card=True 表示"我在圆角卡片里"，底色要用 panel。"""
+        yield w, on_card
+        inside = on_card or bool(getattr(w, "_is_card", False))
         for child in w.winfo_children():
-            for sub in walk(child):
+            for sub in walk(child, inside):
                 yield sub
 
     # ttk 的样式按**类名**生效；有些控件用的是自定义 style，这里统一兜一遍
@@ -139,16 +154,17 @@ def apply(root, dark: bool, skip=()) -> dict:
     except Exception:
         pass
 
-    for w in walk(root):
+    for w, on_card in walk(root):
         if w in skip or getattr(w, "_dsh_theme", None) == dark:
             continue                      # 同主题不重复刷（切换才需要重画）
         w._dsh_theme = dark
+        base = c["panel"] if on_card else c["bg"]   # 卡片内用面板色
         cls = w.winfo_class()
         try:
             if cls in ("Frame", "Toplevel", "Labelframe"):
-                w.configure(bg=c["bg"])
+                w.configure(bg=base)
             elif cls == "Label":
-                w.configure(bg=c["bg"], fg=c["fg"])
+                w.configure(bg=base, fg=c["fg"])
             elif cls == "Button":
                 w.configure(bg=c["panel"], fg=c["fg"],
                             activebackground=c["accent"], activeforeground=c["accent_fg"],
@@ -156,9 +172,14 @@ def apply(root, dark: bool, skip=()) -> dict:
             elif cls in ("Text", "Listbox"):
                 w.configure(bg=c["log_bg"], fg=c["log_fg"], insertbackground=c["fg"])
             elif cls in ("Checkbutton", "Radiobutton"):
-                w.configure(bg=c["bg"], fg=c["fg"], activebackground=c["bg"],
+                w.configure(bg=base, fg=c["fg"], activebackground=base,
                             activeforeground=c["fg"], selectcolor=c["panel"],
-                            highlightbackground=c["bg"], highlightthickness=0)
+                            highlightbackground=base, highlightthickness=0)
+            elif cls == "Scrollbar":
+                w.configure(bg=c["panel"], troughcolor=base,
+                            activebackground=c["accent"],
+                            highlightbackground=base, highlightthickness=0,
+                            bd=0, relief="flat", elementborderwidth=0)
             elif cls in ("Entry", "Spinbox"):
                 w.configure(bg=c["panel"], fg=c["fg"], insertbackground=c["fg"])
         except Exception:
@@ -260,6 +281,23 @@ def pill(parent, text, command, dark=False, kind="ghost"):
                     cv.itemconfigure(it, fill=bg)
             except Exception:
                 pass
+        for it in ids["shape"]:                       # 宽度可能变，坐标一并更新
+            try:
+                if cv.type(it) == "arc":
+                    cx0, cy0, cx1, cy1 = cv.coords(it)
+                    r = (cy1 - cy0) / 2.0
+                    if cx0 < w / 2:                   # 左半的两个角
+                        cv.coords(it, 1, 1, 1 + 2 * r, 33)
+                    else:
+                        cv.coords(it, w - 1 - 2 * r, 1, w - 1, 33)
+                elif cv.type(it) == "rectangle":
+                    x0, y0, x1_, y1_ = cv.coords(it)
+                    if y0 <= 1:
+                        cv.coords(it, x0, 1, x1_, 33)
+                    else:
+                        cv.coords(it, 1, y0, w - 1, y1_)
+            except Exception:
+                pass
         cv.itemconfigure(ids["text"], text=cv._text, fill=fg)
         cv.coords(ids["text"], w / 2 + 10, 17)
         for it in ids["icon"]:
@@ -293,15 +331,17 @@ def card(parent, dark=False, radius=12, pad=16):
     """
     import tkinter as tk
     c0 = palette(dark)
-    cv = tk.Canvas(parent, highlightthickness=0, bd=0, bg=c0["bg"], height=40)
+    # 底色直接用 panel：内层 Frame 的方角万一露在圆角外，也是同色，不会出现白方块
+    cv = tk.Canvas(parent, highlightthickness=0, bd=0, bg=c0["panel"], height=40)
     cv._dark = bool(dark)
-    inner = tk.Frame(cv, bg=c0["panel"])
+    cv._is_card = True                      # 让主题遍历知道"里面要用 panel 底色"
+    inner = tk.Frame(cv, bg=c0["panel"], highlightthickness=0, bd=0)
     win = cv.create_window(pad, pad, window=inner, anchor="nw")
     ids = {"fill": None, "line": []}
 
     def draw(_e=None):
         cc = palette(cv._dark)
-        cv.configure(bg=cc["bg"])
+        cv.configure(bg=cc["panel"])       # 与填充同色，缝不可见
         try:
             inner.configure(bg=cc["panel"])
         except Exception:
@@ -373,7 +413,12 @@ def switch(parent, value=False, command=None, dark=False, width=54, height=28):
             ids["knob"] = cv.create_oval(cx - kr, cy - kr, cx + kr, cy + kr,
                                          fill="#ffffff", outline="#c9ccd2")
             return
-        for k in ("l", "r", "m"):                     # 之后只改颜色/位置
+        # 关键：布局完成后尺寸才会变（首次 redraw 时 width 可能只有 1px），
+        # 所以这里必须**连坐标一起更新**，不能只改颜色。
+        cv.coords(ids["l"], x1, y1, x1 + 2 * r, y2)
+        cv.coords(ids["r"], x2 - 2 * r, y1, x2, y2)
+        cv.coords(ids["m"], x1 + r, y1, x2 - r, y2)
+        for k in ("l", "r", "m"):
             cv.itemconfigure(ids[k], fill=track)
         cv.coords(ids["knob"], cx - kr, cy - kr, cx + kr, cy + kr)
 

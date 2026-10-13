@@ -529,7 +529,7 @@ def run_gui(paths):
             return
         _apply_theme(not state.get("dark", False))
 
-    theme_btn = gui_theme.pill(root, ("☀ 浅色" if dark else "🌙 深色"),
+    theme_btn = gui_theme.pill(root, ("浅色" if dark else "深色"),
                                _toggle_theme, dark=dark, kind="ghost")
     theme_btn.place(relx=1.0, x=-14, y=14, anchor="ne", width=104, height=36)
 
@@ -972,7 +972,7 @@ def run_gui(paths):
         save_config(cfg)
         state["dark"] = is_dark
         try:
-            theme_btn._set_text("☀ 浅色" if is_dark else "🌙 深色")
+            theme_btn._set_text("浅色" if is_dark else "深色")
             theme_btn._set_theme(is_dark)      # 连 Canvas 底色一起换（否则切完还是白）
         except Exception:
             pass
