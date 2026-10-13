@@ -992,7 +992,7 @@ def run_gui(paths):
 
     state["dark"] = dark
     _apply_theme(dark)          # 胶囊按钮的点击已在 gui_theme.pill 里绑定
-    gui_theme.apply_later(root, dark)      # 晚建的控件也要刷到
+    state["_theme_jobs"] = gui_theme.apply_later(root, dark)   # 记下 job，便于取消
 
     root.mainloop()
 

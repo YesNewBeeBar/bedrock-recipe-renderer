@@ -54,13 +54,15 @@ def palette(dark: bool) -> dict:
     return DARK if dark else LIGHT
 
 
-def apply_later(root, dark: bool, skip=(), times=(60, 400, 1200)) -> None:
-    """控件是边建边出现的，延后多刷几次，保证晚建的也被覆盖。"""
+def apply_later(root, dark: bool, skip=(), times=(80, 350)) -> list:
+    """控件是边建边出现的，延后补刷一两次；返回 job id 供调用方取消。"""
+    jobs = []
     for delay in times:
         try:
-            root.after(delay, lambda d=dark: apply(root, d, skip))
+            jobs.append(root.after(delay, lambda d=dark: apply(root, d, skip)))
         except Exception:
             pass
+    return jobs
 
 
 def apply(root, dark: bool, skip=()) -> dict:
@@ -136,8 +138,9 @@ def apply(root, dark: bool, skip=()) -> dict:
         pass
 
     for w in walk(root):
-        if w in skip:
-            continue
+        if w in skip or getattr(w, "_dsh_theme", None) == dark:
+            continue                      # 同主题不重复刷（切换才需要重画）
+        w._dsh_theme = dark
         cls = w.winfo_class()
         try:
             if cls in ("Frame", "Toplevel", "Labelframe"):
@@ -256,7 +259,9 @@ def card(parent, dark=False, radius=12, pad=10):
             pass
         w, h = cv.winfo_width() or 600, cv.winfo_height() or 40
         cv.delete("shape")
-        round_rect(cv, 1, 1, w - 1, h - 1, radius, fill=cc["panel"], outline=cc["border"])
+        # 填满整块（留边会在深色下露出 1px 白线），描边再往里收 1px
+        round_rect(cv, 0, 0, w, h, radius, fill=cc["panel"])
+        round_rect(cv, 1, 1, w - 1, h - 1, radius, outline=cc["border"])
         cv.tag_lower("shape")
         cv.itemconfigure(win, width=max(1, w - 2 * pad))
 
