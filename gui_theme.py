@@ -264,3 +264,49 @@ def card(parent, dark=False, radius=12, pad=10):
     return cv, inner
 
 
+
+
+def switch(parent, value=False, command=None, dark=False, width=52, height=28):
+    """自绘开关（替代 tkinter 的 ✓ 方框，观感与参考图一致）。"""
+    import tkinter as tk
+    cv = tk.Canvas(parent, width=width, height=height, highlightthickness=0, bd=0,
+                   bg=palette(dark)["bg"])
+    cv._dark = bool(dark)
+    cv._on = bool(value)
+    cv._command = command
+
+    def redraw(_e=None):
+        c = palette(cv._dark)
+        cv.configure(bg=c["bg"])
+        cv.delete("all")
+        w = cv.winfo_width() or width
+        h = cv.winfo_height() or height
+        r = h / 2
+        track = c["accent"] if cv._on else c["border"]
+        round_rect(cv, 1, 1, w - 1, h - 1, r, fill=track)
+        cx = (w - r) if cv._on else r
+        pad = max(2, r * 0.18)
+        cv.create_oval(cx - r + pad, pad + 1, cx + r - pad, h - pad - 1,
+                       fill="#ffffff", outline="")
+
+    def toggle(_e=None):
+        cv._on = not cv._on
+        redraw()
+        if callable(cv._command):
+            try:
+                cv._command(cv._on)
+            except Exception:
+                pass
+
+    cv.bind("<Button-1>", toggle)
+    cv.bind("<Configure>", redraw)
+    cv.bind("<Enter>", lambda _e: cv.configure(cursor="hand2"))
+
+    def set_theme(is_dark):
+        cv._dark = bool(is_dark)
+        redraw()
+
+    cv._set_theme = set_theme
+    cv.get = lambda: cv._on
+    redraw()
+    return cv

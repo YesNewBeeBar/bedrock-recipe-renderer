@@ -545,6 +545,7 @@ def run_gui(paths):
             tk.Label(head, image=_logo).pack(side="left", padx=(0, 10))
     except Exception:
         _logo = None
+    tk.Misc.tkraise(theme_btn)   # Canvas 重写了 tkraise，必须走基类            # 关键：head 是后创建的，会盖住 place 的胶囊 → 必须提到最上层
     _col = tk.Frame(head)
     _col.pack(side="left", anchor="w")
     tk.Label(_col, text="合成表生成器",
@@ -574,8 +575,10 @@ def run_gui(paths):
     paths_frame.columnconfigure(1, weight=1)
     entries = {}
 
-    log = tk.Text(root, height=15, wrap="word")
-    log.pack(fill="both", expand=True, padx=12, pady=8)
+    _log_card, _log_inner = gui_theme.card(root, dark)
+    _log_card.pack(fill="both", expand=True, padx=12, pady=(8, 6))
+    log = tk.Text(_log_inner, height=15, wrap="word", relief="flat", bd=0)
+    log.pack(fill="both", expand=True)
     scroll = tk.Scrollbar(log, command=log.yview)
     scroll.pack(side="right", fill="y")
     log.config(yscrollcommand=scroll.set)
@@ -691,8 +694,8 @@ def run_gui(paths):
     entries["out"].trace_add("write", refresh_hint)
     refresh_hint()
 
-    opts = tk.Frame(root)
-    opts.pack(fill="x", padx=12, pady=(8, 0))
+    _opts_card, opts = gui_theme.card(root, dark)
+    _opts_card.pack(fill="x", padx=12, pady=(6, 4))
     tk.Label(opts, text="版式").grid(row=0, column=0, sticky="w")
     layout_var = tk.StringVar(value=cfg.get("layout", "modern"))
     ttk.Combobox(opts, textvariable=layout_var, values=("modern", "classic"), width=9,
@@ -710,8 +713,23 @@ def run_gui(paths):
     ttk.Combobox(opts, textvariable=wiki_var, values=("auto", "always", "never"), width=7,
                  state="readonly").grid(row=0, column=7, padx=4)
     local_var = tk.BooleanVar(value=bool(cfg.get("local_only")))
-    tk.Checkbutton(opts, text="只用本地（不联网）", variable=local_var,
-                   command=lambda: apply_cfg(save=True)).grid(row=0, column=8, padx=(10, 0))
+    _local_sw = gui_theme.switch(
+        opts, bool(cfg.get("local_only")),
+        lambda v: (local_var.set(bool(v)), apply_cfg(save=True)), dark=dark)
+    _local_sw.grid(row=0, column=8, padx=(10, 0))
+    tk.Label(opts, text="只用本地（不联网）").grid(row=0, column=9, sticky="w", padx=(6, 0))
+
+    def _sync_local(*_a):           # 别处 local_var.set(...) 时，开关也要跟着动
+        try:
+            _local_sw._on = bool(local_var.get())
+            _local_sw.event_generate("<Configure>")
+        except Exception:
+            pass
+
+    try:
+        local_var.trace_add("write", _sync_local)
+    except Exception:
+        pass
 
     def process(paths_):
         if state["busy"]:
@@ -944,8 +962,13 @@ def run_gui(paths):
             state["_draw_drop"]()          # 拖放卡跟着换色
         except Exception:
             pass
+        for _w in (_paths_card, _opts_card, _log_card):
+            try:
+                _w.event_generate("<Configure>")     # 卡片跟着换色
+            except Exception:
+                pass
         try:
-            _paths_card.event_generate("<Configure>")
+            _local_sw._set_theme(is_dark)            # 自绘开关跟着换色
         except Exception:
             pass
 
