@@ -10,7 +10,7 @@ import os
 import sys
 import traceback
 
-VERSION = "2.0.0"
+VERSION = "1.0.0"
 
 
 def _bootstrap(work_root: str, ext_root: str) -> None:
