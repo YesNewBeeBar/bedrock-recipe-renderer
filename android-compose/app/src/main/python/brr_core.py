@@ -30,6 +30,29 @@ def _roots(work_root: str, ext_root: str):
     return here, vanilla, wiki, pinned
 
 
+#: 文件名里不能出现的字符（Windows）
+_BAD_CHARS = set(chr(47) + chr(92) + ':*?"<>|')
+
+
+def _relative(path: str) -> str:
+    """配方文件相对 recipes/ 的路径 —— 保留 crafting/、furnace/ 等原有层级。
+
+    与桌面端 mcrender_app.Generator._relative 同一套规则：找到最近的 recipes
+    祖先目录并返回其下的相对路径，找不到就退回文件名。这样输出结构与包内一致，
+    不同子目录里的同名配方也不会互相覆盖。
+    """
+    path = os.path.abspath(path)
+    folder = os.path.dirname(path)
+    for _ in range(4):
+        if os.path.basename(folder).lower() == "recipes":
+            return os.path.relpath(path, folder)
+        parent = os.path.dirname(folder)
+        if parent == folder:
+            break
+        folder = parent
+    return os.path.basename(path)
+
+
 def render(bp_path, rp_path, vanilla_path, files, out_dir,
            scale, layout, shading, wiki_icons, local_only, logger, progress,
            work_root, ext_root):
@@ -98,15 +121,25 @@ def render(bp_path, rp_path, vanilla_path, files, out_dir,
         try:
             img, _lay = renderer.render(rec)
             name = getattr(rec, "identifier", None) or "recipe_%d" % i
-            safe = "".join(ch if ch not in '\\/:*?"<>|' else "_" for ch in str(name))
-            dest = os.path.join(target_root, safe + ".png")
+            # 按配方文件的相对路径落盘（保留 crafting/、furnace/ 等层级），
+            # 与桌面端 / Kivy 版的输出结构保持一致
+            rec_path = getattr(rec, "path", "") or ""
+            rel = _relative(rec_path) if rec_path else ""
+            if not rel:
+                nm = getattr(rec, "identifier", None) or ("recipe_%d" % i)
+                rel = "".join(c if c not in _BAD_CHARS else "_" for c in str(nm)) + ".png"
+            else:
+                rel = os.path.splitext(rel)[0] + ".png"
+            dest = os.path.join(target_root, rel)
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            img.save(dest)
             img.save(dest)
             done += 1
             try:                                   # 同标签轮播 GIF（核心能力）
                 taggif.render_gif(renderer, rec, dest, log=log)
             except Exception:
                 pass
-            log("✓ %s" % safe)
+            log("✓ %s" % rel)
         except Exception:
             log("✗ 第 %d 条失败:\n%s" % (i, traceback.format_exc()))
         if progress is not None:
