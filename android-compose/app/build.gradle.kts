@@ -19,9 +19,19 @@ android {
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("../brr-release.jks")
+            storePassword = "brr-release"
+            keyAlias = "brr"
+            keyPassword = "brr-release"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             isMinifyEnabled = false
