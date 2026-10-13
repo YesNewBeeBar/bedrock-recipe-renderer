@@ -31,11 +31,11 @@ from qfluentwidgets import (
 )
 
 # ---- 复用现有逻辑（核心与业务，均未改动）------------------------------------
-from mcrender_gui import (
+from mcrender_app import (
     Generator, app_dir, bundle_dir, find_matching_rp, find_recipes, icon_path,
     is_archive, load_config, pack_kinds, save_config, seed_caches, unpack_archive,
 )
-import gui_theme   # 只用它的 system_is_dark()（首次启动跟随设备）
+import gui_theme as gui_theme              # 只用 system_is_dark()
 
 APP_VERSION = "2.0.0"
 BASE = app_dir()
