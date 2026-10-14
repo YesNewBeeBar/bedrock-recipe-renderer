@@ -12,7 +12,7 @@ SRC = os.path.join(HERE, "android-kivy")
 DST = os.path.join(HERE, "android-compose", "app", "src", "main", "python")
 
 #: 需要整体复制的目录（核心 + 素材）
-DIRS = ("mcrender", "vanilla", "wiki_cache", "wiki_pinned")
+DIRS = ("mcrender", "vanilla", "wiki_cache", "wiki_pinned", "assets")
 #: 单文件模块（解包实现，与旧版共用）
 #: 需要复制的单文件
 FILES = ("tags_be.json", "vanilla_kinds.json")
