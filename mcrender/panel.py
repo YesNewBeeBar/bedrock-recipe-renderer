@@ -24,8 +24,15 @@ PANEL_SIZE = (160, 80)
 CORNER = 1                          # x >= w-3 / y >= h-3 -> bottom/right shade
 
 
-def shape(w: int, h: int, inset: int = 0):
-    """Pixels of a rounded rectangle inset by *inset* (2px corner chamfer)."""
+def shape(w, h, inset: int = 0):
+    """Pixels of a rounded rectangle inset by *inset* (2px corner chamfer).
+
+    宽高可能是小数：切石机/锻造台的面板高度就是 72.75 / 74.75（对应游戏里的
+    半像素尺寸）。以前直接 range(72.75) 会 TypeError，整条配方渲染失败
+    —— 现象就是"切石机、锻造台没被识别"。这里统一取整。
+    """
+    w = int(round(float(w)))
+    h = int(round(float(h)))
     iw, ih = w - 2 * inset, h - 2 * inset
     for y in range(ih):
         for x in range(iw):
@@ -33,9 +40,11 @@ def shape(w: int, h: int, inset: int = 0):
                 yield inset + x, inset + y
 
 
-def draw_panel(img: Image.Image, w: int, h: int, origin=(0, 0)) -> None:
+def draw_panel(img: Image.Image, w, h, origin=(0, 0)) -> None:
     """Minecraft container background: 1px black outline, 2px white top/left,
     2px #555555 bottom/right, chamfered corners."""
+    w = int(round(float(w)))
+    h = int(round(float(h)))
     ox, oy = origin
     px = img.load()
 
