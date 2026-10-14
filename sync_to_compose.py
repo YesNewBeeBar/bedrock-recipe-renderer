@@ -28,8 +28,8 @@ def main() -> int:
             print(f"  跳过 {name}（不存在于 {SRC}）")
             continue
         if os.path.isdir(d):
-            shutil.rmtree(d)
-        shutil.copytree(s, d)
+            shutil.rmtree(d, ignore_errors=True)   # 文件被占用时跳过，下一步会覆盖
+        shutil.copytree(s, d, dirs_exist_ok=True)
         n = sum(len(fs) for _b, _d, fs in os.walk(d))
         print(f"  ✓ {name}: {n} 个文件")
     for name in FILES:
