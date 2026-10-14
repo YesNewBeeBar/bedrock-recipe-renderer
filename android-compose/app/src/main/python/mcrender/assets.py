@@ -764,12 +764,73 @@ class Assets:
                 best, best_score, best_hits = key, score, hits
         return best if best_score >= 0.6 else None
 
+    def _flipbook_paths(self) -> set:
+        """登记为动态纹理（flipbook）的贴图路径集合。
+
+        基岩版把动画贴图竖着拼成一长条，flipbook_textures.json 里逐条登记。
+        只认这份元数据、不按「高 > 宽」去猜 —— 本来就有很高的静态贴图，
+        猜错会把它们裁坏（issue #10 里岩浆块被画成一整条动画帧就是这个原因）。
+        """
+        cached = getattr(self, "_flipbook_cache", None)
+        if cached is not None:
+            return cached
+        found: set = set()
+        roots = []
+        for attr in ("rp_dirs", "bp_dirs"):
+            roots += list(getattr(self, attr, []) or [])
+        roots += list(getattr(self, "rp_roots", []) or [])
+        vdir = getattr(self, "vanilla_dir", None)
+        if vdir:
+            roots.append(vdir)
+        for base in roots:
+            if not base:
+                continue
+            for rel in ("textures/flipbook_textures.json", "flipbook_textures.json"):
+                fp = os.path.join(base, rel)
+                if not os.path.isfile(fp):
+                    continue
+                try:
+                    import json as _json
+                    data = _json.load(open(fp, encoding="utf-8"))
+                except Exception:
+                    continue
+                if not isinstance(data, list):
+                    continue
+                for entry in data:
+                    if not isinstance(entry, dict):
+                        continue
+                    tex = entry.get("flipbook_texture") or ""
+                    if not tex:
+                        continue
+                    tex = str(tex).replace("\\", "/").lstrip("/").lower()
+                    if not tex.endswith(".png"):
+                        tex += ".png"
+                    found.add(tex)
+                    found.add(os.path.basename(tex))
+        self._flipbook_cache = found
+        return found
+
     def _image(self, path: str | None) -> Image.Image | None:
         if not path:
             return None
         if path not in self._images:
             try:
-                self._images[path] = Image.open(path).convert("RGBA")
+                im = Image.open(path).convert("RGBA")
+                # 动态纹理（岩浆块、水、火…）是竖着拼的长条：只取第一帧，
+                # 否则会把整条 16x256 当成立方体的一面（issue #10）。
+                try:
+                    rel = os.path.relpath(path, getattr(self, "root", "") or ".")
+                except Exception:
+                    rel = path
+                norm = str(rel).replace("\\", "/").lstrip("./").lower()
+                fb = self._flipbook_paths()
+                # 动态纹理（岩浆块 16x48、水、火…）是竖着拼的长条：一律取第一帧。
+                # 与 icon.py::_flat 规则一致 —— 立方体的"面"本来就该是方的，
+                # 整条长条贴上去必然是错的（issue #10 的岩浆块就是这样画坏的）。
+                if im.height > im.width and im.height % im.width == 0:
+                    im = im.crop((0, 0, im.width, im.width))
+                    im = im.crop((0, 0, im.width, im.width))
+                self._images[path] = im
             except Exception:
                 self._images[path] = None
         return self._images[path]
@@ -1067,7 +1128,9 @@ class Assets:
         #    对**任何**物品都试一次：抓取端已经只认 "Invicon X[_BE].png"（不再回退到
         #    文章插图），所以这里拿到的要么是游戏物品栏图标，要么就是没有。
         #    离线时 offline=True → 只查本地缓存，不会联网。
-        kind = self.kind_of(name)
+        # 传【完整 id】而不是短名：短名会丢掉命名空间，自定义命名空间就被当成
+        # minecraft:，短名兜底又会命中包内 terrain/blocks 的同名条目（issue #10）。
+        kind = self.kind_of(norm)
         # 1b. 染料：data 值也走显式映射（不能拿列表下标当 data）
         if name in ("dye", "dye_powder") and variant is not None and str(variant).isdigit():
             fname = DYE_BY_DATA.get(int(variant))
@@ -1077,6 +1140,9 @@ class Assets:
                 if img is not None:
                     return Icon(ident, "item", item=img, note=f"dye data {variant}")
 
+        pinned = self.pinned_icon(name)
+        if pinned is not None:
+            return Icon(ident, "item", item=pinned, smooth=True, note="pinned icon")
         # 1c. 桶：data 值走显式映射（列表下标与 data 值并不一致）
         if name == "bucket" and variant is not None and str(variant).isdigit():
             fname = BUCKET_BY_DATA.get(int(variant))
@@ -1085,9 +1151,6 @@ class Assets:
                 if img is not None:
                     return Icon(ident, "item", item=img, note=f"bucket data {variant}")
 
-        pinned = self.pinned_icon(name)
-        if pinned is not None:
-            return Icon(ident, "item", item=pinned, smooth=True, note="pinned icon")
         # 物品和方块**都先试维基物品栏图标** —— 游戏里信标在物品栏就是那张带光柱的图标，
         # 普通立方体反而不对（用户指出过）。拿不到才退回方块立方体。
         if self.wiki_icons != "never":
@@ -1105,8 +1168,12 @@ class Assets:
                 return Icon(ident, "item", item=img, note="plant item sprite")
 
         # 0b. blocks with a custom geometry get a real model render
+        #     **只对方块生效**：附加包里的物品 id 常常也在 blocks/ 下有几何定义
+        #     （issue #10 的 更多投掷球 就是如此），若对物品也走这条分支，
+        #     物品会被画成立方体 —— 用户看到的现象就是"自定义物品还是方块"。
         model = self.block_models.get(norm) or self.block_models.get(name)
-        if model and model.get("geometry") and "full_block" not in str(model["geometry"]):
+        if (kind == "block" and model and model.get("geometry")
+                and "full_block" not in str(model["geometry"])):
             geo = self.geometries.get(model["geometry"])
             if geo is not None:
                 faces = {}
