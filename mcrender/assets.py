@@ -387,7 +387,7 @@ class Assets:
         self.rp_roots = []
         for rp in self._as_dirs(self.rp_dir):
             self.rp_roots.append(rp)
-            self.rp_roots += sorted(d for d in glob.glob(os.path.join(rp, "subpacks", "*"))
+            self.rp_roots += sorted(d for d in glob.glob(os.path.join(glob.escape(rp), "subpacks", "*"))
                                     if os.path.isdir(d))
         self.bp_dirs = self._as_dirs(self.bp_dir)
         # some add-ons ship as a *project* (BP + RP + assets/): the textures and the
@@ -473,6 +473,7 @@ class Assets:
         if self.bp_dirs:
             self._load_bp_icons()
             self._load_block_models()
+            self._load_item_definitions()
         self.geometries = load_geometries(self.rp_roots)
 
     # ------------------------------------------------------------------ io
@@ -546,7 +547,7 @@ class Assets:
 
     def _load_bp_icons(self):
         for bp in self.bp_dirs:
-            for path in sorted(glob.glob(os.path.join(bp, "items", "**", "*.json"),
+            for path in sorted(glob.glob(os.path.join(glob.escape(bp), "items", "**", "*.json"),
                                          recursive=True)):
                 data = self._read(path)
                 if not isinstance(data, dict):
@@ -653,25 +654,52 @@ class Assets:
         其次原版定义表，最后看贴图归属（item_texture=物品 / terrain、blocks=方块）。
         物品一律画物品图标，绝不画立方体；方块画立方体。"""
         key = name.split(":")[-1]
-        for cand in (name, "minecraft:" + key, key):
+        # 短名兜底只在 minecraft: 命名空间（或本来就没写命名空间）时启用。
+        # 自定义命名空间必须整名匹配，否则 xyby:honey_block 会被原版的
+        # minecraft:honey_block 串成方块（issue #10）。
+        ns = name.split(":")[0] if ":" in name else "minecraft"
+        allow_short = ns == "minecraft"
+        for cand in ((name, "minecraft:" + key, key) if allow_short else
+                     (name, "minecraft:" + key)):
             kind = self.kinds.get(cand)
             if kind:
                 return kind
-        if name in self.item_texture or key in self.item_texture:
+        if name in self.item_texture or (allow_short and key in self.item_texture):
             return "item"
         # 自定义方块（stonecraft:lv1stone 这类）**只**登记在 terrain_texture，
         # 不认它就会被判成 item → 方块分支被跳过 → 方块贴图全丢（用户反馈的回归）。
         # 顺序：blocks.json → terrain_texture；BP 定义（self.kinds）最优先，已在上面处理。
-        if (name in self.blocks or key in self.blocks
-                or name in self.terrain_texture or key in self.terrain_texture):
+        if (name in self.blocks
+                or (allow_short and key in self.blocks)
+                or name in self.terrain_texture
+                or (allow_short and key in self.terrain_texture)):
             return "block"
         # 判不出来的按**物品**处理：乱画成立方体比缺图更糟（用户多次反馈过）
         return "item"
 
+    def _load_item_definitions(self):
+        """BP item definitions: ``minecraft:item`` → 记为物品。
+
+        与 _load_block_models 对称。缺了它，自定义物品会掉到「贴图归属」判断，
+        被包内 terrain_texture 的短名命中而误判成方块（issue #10）。
+        """
+        for bp in self.bp_dirs:
+            for path in glob.glob(os.path.join(glob.escape(bp), "items", "**", "*.json"),
+                                  recursive=True):
+                data = self._read(path)
+                if not isinstance(data, dict):
+                    continue
+                for key, body in data.items():
+                    if not key.startswith("minecraft:item") or not isinstance(body, dict):
+                        continue
+                    ident = (body.get("description") or {}).get("identifier")
+                    if ident:
+                        self.kinds[ident] = "item"
+
     def _load_block_models(self):
         """BP block definitions: ``minecraft:geometry`` + ``minecraft:material_instances``."""
         for bp in self.bp_dirs:
-            for path in glob.glob(os.path.join(bp, "blocks", "**", "*.json"), recursive=True):
+            for path in glob.glob(os.path.join(glob.escape(bp), "blocks", "**", "*.json"), recursive=True):
                 data = self._read(path)
                 if not isinstance(data, dict):
                     continue
