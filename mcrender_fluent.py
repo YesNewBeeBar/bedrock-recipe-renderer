@@ -37,7 +37,7 @@ from mcrender_app import (
 )
 import gui_theme as gui_theme              # 只用 system_is_dark()
 
-APP_VERSION = "2.0.0"
+APP_VERSION = "1.1.0"
 BASE = app_dir()
 
 DROP_HINT = "↓  将 [json / .mcaddon / .mcpack / zip / 文件夹] 拖入窗口  ↓"

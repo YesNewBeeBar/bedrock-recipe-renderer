@@ -1,7 +1,7 @@
 """自解压安装器（纯 Python，不含 PySide6，所以启动很快）。
 
 内嵌 app.zip（整个程序目录），双击后：
-  1) 解压到 %LOCALAPPDATA%\\BRR（已存在且版本一致就跳过）
+  1) 解压到 %LOCALAPPDATA%\\BRR（已安装过就跳过）
   2) 建桌面快捷方式
   3) 启动主程序
 之后用户从快捷方式启动，速度与文件夹版一致（约 1 秒）。
@@ -9,9 +9,9 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
+import tempfile
 import zipfile
 
 APP_NAME = "合成表生成器.exe"
@@ -48,18 +48,40 @@ def extract(payload: str) -> bool:
         return False
 
 
-def make_shortcut(exe: str) -> None:
-    ps = (
-        "$s=New-Object -ComObject WScript.Shell;"
-        "$l=$s.CreateShortcut([Environment]::GetFolderPath('Desktop')+'\\合成表生成器.lnk');"
-        f"$l.TargetPath='{exe}';$l.WorkingDirectory='{TARGET}';"
-        f"$l.IconLocation='{exe}';$l.Description='Minecraft 基岩版合成表出图工具';$l.Save()"
-    )
+def make_shortcut(exe: str) -> bool:
+    """建桌面快捷方式。
+
+    直接拼 `powershell -Command` 会在中文路径 + 引号上翻车（实测建不出来），
+    改成先写一个带 BOM 的 .ps1 再执行 —— 路径原样交给 PowerShell，最稳。
+    """
+    lines = [
+        "$ws = New-Object -ComObject WScript.Shell",
+        "$desktop = [Environment]::GetFolderPath('Desktop')",
+        "$lnk = Join-Path $desktop '合成表生成器.lnk'",
+        "$s = $ws.CreateShortcut($lnk)",
+        "$s.TargetPath = '" + exe + "'",
+        "$s.WorkingDirectory = '" + TARGET + "'",
+        "$s.IconLocation = '" + exe + "'",
+        "$s.Description = 'Minecraft 基岩版合成表出图工具'",
+        "$s.Save()",
+        "Write-Output ('OK ' + $lnk)",
+    ]
+    script = os.path.join(tempfile.gettempdir(), "brr_shortcut.ps1")
     try:
-        subprocess.run(["powershell", "-NoProfile", "-Command", ps],
-                       creationflags=0x08000000, timeout=30)
-    except Exception:
-        pass
+        # utf-8-sig：PowerShell 5 认 BOM，没有 BOM 时中文会乱码
+        with open(script, "w", encoding="utf-8-sig") as fh:
+            fh.write("\n".join(lines) + "\n")
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script],
+            capture_output=True, text=True, timeout=60,
+            creationflags=0x08000000)
+        out = (r.stdout or "") + (r.stderr or "")
+        if "OK" in out:
+            return True
+        print("快捷方式输出:", out.strip()[:200])
+    except Exception as exc:
+        print("快捷方式创建失败:", exc)
+    return False
 
 
 def ensure_named() -> str:
@@ -91,15 +113,17 @@ def main() -> int:
         if not extract(payload):
             return 1
         exe = ensure_named()
-        make_shortcut(exe)
-        print("安装完成（桌面已创建快捷方式）")
+        ok = make_shortcut(exe)
+        print("桌面快捷方式:", "已创建" if ok else "创建失败（可从安装目录直接启动）")
+        print("安装完成")
     else:
         print("已安装过，直接启动")
-    exe = ensure_named()
+        exe = ensure_named()
 
     if os.path.isfile(exe):
         subprocess.Popen([exe], cwd=TARGET)
         return 0
+    print("找不到主程序:", exe)
     return 1
 
 
