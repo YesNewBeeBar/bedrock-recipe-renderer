@@ -160,7 +160,7 @@ class GlyphSheets:
             texts = os.path.join(self.root, "texts")
             for lang in self.LANGS + ("*",):
                 cand = os.path.join(texts, lang, "font")
-                if glob.glob(os.path.join(cand, "glyph_*.png")):
+                if glob.glob(os.path.join(glob.escape(cand), "glyph_*.png")):
                     self.font_dir = cand
                     break
         elif self.source is not None:

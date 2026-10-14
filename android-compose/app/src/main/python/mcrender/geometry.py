@@ -200,7 +200,7 @@ def load_geometries(roots) -> dict:
     for root in roots:
         if not root or not os.path.isdir(root):
             continue
-        for path in glob.glob(os.path.join(root, "models", "**", "*.json"), recursive=True):
+        for path in glob.glob(os.path.join(glob.escape(root), "models", "**", "*.json"), recursive=True):
             for geo in parse_geometry_file(path):
                 if geo.identifier:
                     out[geo.identifier] = geo
