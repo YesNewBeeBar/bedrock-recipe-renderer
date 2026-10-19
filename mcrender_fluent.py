@@ -35,7 +35,8 @@ from mcrender_app import (
     Generator, app_dir, bundle_dir, find_matching_rp, find_recipes, icon_path,
     is_archive, load_config, pack_kinds, save_config, seed_caches, unpack_archive,
 )
-import gui_theme as gui_theme              # 只用 system_is_dark()
+import gui_theme as gui_theme
+import updater
 
 APP_VERSION = "1.1.1"
 BASE = app_dir()
@@ -48,6 +49,7 @@ class Bridge(QObject):
     logged = Signal(str)
     progress = Signal(int, int)      # 已完成, 总数
     finished = Signal(int)           # 生成张数
+    updateReady = Signal(object)     # 更新检查结果（dict）或异常（str）
 
 
 class DropCard(CardWidget):
@@ -122,6 +124,7 @@ class MainWindow(QWidget):
         self.bridge.logged.connect(self._log)
         self.bridge.progress.connect(self._progress)
         self.bridge.finished.connect(self._finished)
+        self.bridge.updateReady.connect(self._show_update)
         self.busy = False
 
         # 普通 QWidget 不会被 Fluent 主题自动上底色 —— 不设的话浅色模式下
@@ -243,6 +246,9 @@ class MainWindow(QWidget):
 
         more = QHBoxLayout()
         more.setSpacing(8)
+        self.btn_update = PushButton(FIF.SYNC, "检查更新", self)
+        self.btn_update.clicked.connect(self.check_updates)
+        more.addWidget(self.btn_update)
         for text, slot in (("选择配方文件…", self.pick_files),
                            ("选择配方文件夹…", self.pick_folder),
                            ("补全原版资源（下载全部纹理）", self.sync_vanilla),
@@ -265,6 +271,7 @@ class MainWindow(QWidget):
         self._refresh_hint()
         self._log(f"合成表生成器 v{APP_VERSION} 就绪。")
         self._log("出图会直接写你选的目录（其下建「合成表」）。")
+        QTimer.singleShot(1500, self.check_updates_silent)
 
     # ------------------------------------------------------------------ 主题
     def _restore_theme(self):
@@ -450,6 +457,78 @@ class MainWindow(QWidget):
         self._save_cfg()
         self._toast("开始补全", "正在下载缺失的原版纹理，请看日志")
         self._start([self.row_bp.value()] if self.row_bp.value() else [])
+
+    # ------------------------------------------------------------------ 更新
+    def _show_update(self, info):
+        """检查结果回到界面线程。"""
+        if isinstance(info, str):                      # 检查失败
+            self._log(f"检查更新失败：{info}")
+            return
+        if not info.get("newer"):
+            self._toast("已是最新版本",
+                        f"当前 v{APP_VERSION}，GitHub 最新 {info.get('asset_version')}")
+            return
+        asset = info.get("asset") or {}
+        if not asset:
+            self._toast("有新版本但没有可用的安装包", str(info.get("latest")), ok=False)
+            return
+        size = asset.get("size", 0) / 1048576
+        self._log(f"发现新版本 {info.get('asset_version')}（{size:.1f} MB），开始下载…")
+        threading.Thread(target=self._download_and_run, args=(asset,), daemon=True).start()
+
+    def _download_and_run(self, asset):
+        try:
+            path = updater.download(
+                asset["url"], name=asset["name"],
+                progress=lambda d, t: self.bridge.logged.emit(
+                    f"下载中 {d / 1048576:.1f}/{t / 1048576:.1f} MB"
+                    if t else f"下载中 {d / 1048576:.1f} MB"))
+        except Exception as exc:
+            self.bridge.logged.emit(f"✗ 下载失败：{exc}")
+            return
+        self.bridge.logged.emit(f"✓ 已下载：{path}，即将启动安装器")
+        # 安装器看到 .installed 就会跳过解压，先删掉它才能覆盖旧版本
+        stamp = os.path.join(os.environ.get("LOCALAPPDATA", ""), "BRR", ".installed")
+        try:
+            os.remove(stamp)
+        except OSError:
+            pass
+        try:
+            os.startfile(path)
+        except Exception as exc:
+            self.bridge.logged.emit(f"✗ 无法启动安装器：{exc}")
+            return
+        # 让安装器接管：本进程退出，否则 exe / dll 被占用无法替换
+        QTimer.singleShot(1200, QApplication.quit)
+
+    def check_updates(self):
+        self.btn_update.setEnabled(False)
+        self._log("正在检查 GitHub 最新版本…")
+
+        def work():
+            try:
+                info = updater.check(APP_VERSION, platform="windows")
+            except Exception as exc:
+                self.bridge.updateReady.emit(str(exc))
+            else:
+                self.bridge.updateReady.emit(info)
+            finally:
+                QTimer.singleShot(0, lambda: self.btn_update.setEnabled(True))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def check_updates_silent(self):
+        """启动时静默检查：有新版本才提示，失败不打扰。"""
+
+        def work():
+            try:
+                info = updater.check(APP_VERSION, platform="windows")
+            except Exception:
+                return
+            if info.get("newer"):
+                self.bridge.updateReady.emit(info)
+
+        threading.Thread(target=work, daemon=True).start()
 
     def clear_cache(self):
         box = MessageBox("确认", "删除本地下载的原版纹理缓存？\n（已内置的素材不受影响）", self)
