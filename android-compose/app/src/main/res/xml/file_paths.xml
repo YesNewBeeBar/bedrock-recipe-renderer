@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 更新下载的 APK 放在 cache 目录 -->
+    <cache-path name="update" path="update/" />
+    <external-cache-path name="external_update" path="update/" />
+    <files-path name="files" path="." />
+</paths>

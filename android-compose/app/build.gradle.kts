@@ -12,8 +12,8 @@ android {
         applicationId = "com.yesnewbeebar.brr"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
 
         // Chaquopy：只打 arm64，包小一半；Python 核心通过它运行
         ndk { abiFilters += listOf("arm64-v8a") }
@@ -44,7 +44,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     testOptions {
         unitTests {
             isIncludeAndroidResources = true

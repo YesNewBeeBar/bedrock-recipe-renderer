@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -60,6 +61,56 @@ fun MainScreen(prefs: Prefs, dark: Boolean, onDark: (Boolean) -> Unit) {
     var log by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
+
+    // ---- 在线更新
+    var updateStatus by remember { mutableStateOf("") }
+    var pendingUrl by remember { mutableStateOf<String?>(null) }
+    var pendingName by remember { mutableStateOf("") }
+
+    fun checkUpdate(silent: Boolean) {
+        scope.launch {
+            if (!silent) updateStatus = "正在检查更新…"
+            val res = withContext(Dispatchers.IO) {
+                runCatching { Updater.check(BuildConfig.VERSION_NAME) }
+            }
+            res.onSuccess { info ->
+                if (info.newer && !info.apkUrl.isNullOrBlank()) {
+                    updateStatus = "发现新版本 " + info.version
+                    pendingUrl = info.apkUrl
+                    pendingName = info.apkName ?: "update.apk"
+                } else {
+                    updateStatus = if (silent) "" else "已是最新版本（" + BuildConfig.VERSION_NAME + "）"
+                    pendingUrl = null
+                }
+            }.onFailure { e ->
+                updateStatus = if (silent) "" else "检查失败：" + (e.message ?: "")
+            }
+        }
+    }
+
+    fun installUpdate() {
+        val url = pendingUrl ?: return
+        val name = pendingName
+        scope.launch {
+            updateStatus = "正在下载更新…"
+            try {
+                val f = withContext(Dispatchers.IO) {
+                    Updater.download(url, File(ctx.cacheDir, "update/" + name)) { done, total ->
+                        if (total > 0) updateStatus = "下载中 " + (done * 100 / total) + "%"
+                    }
+                }
+                updateStatus = "下载完成，正在调起安装…"
+                if (!Updater.install(ctx, f)) {
+                    updateStatus = "请在系统设置中允许「安装未知应用」后重试"
+                }
+            } catch (e: Exception) {
+                updateStatus = "下载失败：" + (e.message ?: "")
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) { checkUpdate(true) }
+
 
     fun say(line: String) { log = (log + "\n" + line).trim() }
     fun persist() {
@@ -214,6 +265,19 @@ fun MainScreen(prefs: Prefs, dark: Boolean, onDark: (Boolean) -> Unit) {
                 val dir = File(out, "合成表")
                 if (dir.isDirectory) say("输出目录：${dir.absolutePath}") else say("还没有出图结果")
             }, modifier = Modifier.fillMaxWidth()) { Text("查看输出位置") }
+
+            Row(verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = {
+                    if (pendingUrl != null) installUpdate() else checkUpdate(false)
+                }, shape = RoundedCornerShape(12.dp)) {
+                    Text(if (pendingUrl != null) "更新到最新版" else "检查更新")
+                }
+                Spacer(Modifier.width(10.dp))
+                Text(updateStatus, fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
 
             Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
                 Text(
