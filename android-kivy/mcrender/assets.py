@@ -759,6 +759,11 @@ class Assets:
             hits = len(want & have)
             if hits < 2:                      # 只重合一个词太容易误判
                 continue
+            # 候选词元比目标还多，说明它是个"更长的近亲"：
+            # oxidized_copper → oxidized_copper_door、copper → copper_door。
+            # 这类只能是误判，直接排除（issue：铜块被认成铜门）。
+            if len(have) > len(want):
+                continue
             score = hits / max(1, min(len(want), len(have)))
             if (score, hits) > (best_score, best_hits):
                 best, best_score, best_hits = key, score, hits

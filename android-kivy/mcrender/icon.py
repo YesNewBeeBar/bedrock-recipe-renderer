@@ -131,7 +131,11 @@ def _flat(image: Image.Image, size: int, smooth: bool = False) -> Image.Image:
     if img.height > img.width:            # animated flipbook strip -> first frame
         img = img.crop((0, 0, img.width, img.width))
     if img.size != (size, size):
-        img = img.resize((size, size), Image.LANCZOS if smooth else Image.NEAREST)
+        # 放大：像素画必须 NEAREST，否则 16x16 的钻石/铁锭放大后发糊。
+        # 缩小：wiki 的大尺寸渲染图才用 LANCZOS 平滑。
+        upscaling = size > img.width
+        resample = Image.NEAREST if (upscaling or not smooth) else Image.LANCZOS
+        img = img.resize((size, size), resample)
     return img
 
 

@@ -163,12 +163,20 @@ class GlyphSheets:
                 if glob.glob(os.path.join(glob.escape(cand), "glyph_*.png")):
                     self.font_dir = cand
                     break
-        elif self.source is not None:
+        # 用户的原版包里可能没有 font/（只挑了贴图的精简包），
+        # 这时仍要去 source（Vanilla 缓存）里找随包提供的字形页。
+        if self.font_dir is None and self.source is not None:
+            # ja_JP/zh_CN 的 CJK 页从 glyph_2E 起（没有 glyph_00），
+            # 所以要多探几个起始页，不能只试 00。
             for lang in self.LANGS:
-                path = self.source.find(f"texts/{lang}/font/glyph_00.png", extensions=(".png",))
-                if path:
-                    self.font_dir = os.path.dirname(path)
-                    self.lang = lang
+                for probe in ("00", "2E", "30", "4E", "80"):
+                    path = self.source.find(f"texts/{lang}/font/glyph_{probe}.png",
+                                            extensions=(".png",))
+                    if path:
+                        self.font_dir = os.path.dirname(path)
+                        self.lang = lang
+                        break
+                if self.font_dir:
                     break
         self._cache: dict[str, Image.Image | None] = {}
 
@@ -181,6 +189,12 @@ class GlyphSheets:
             hit = self.source.find(f"texts/{self.lang}/font/glyph_{key}.png", extensions=(".png",))
             if hit:
                 return hit
+        if self.source is not None and self.font_dir is None:
+            for lang in self.LANGS:            # 语言目录未知时逐个探
+                hit = self.source.find(f"texts/{lang}/font/glyph_{key}.png",
+                                       extensions=(".png",))
+                if hit:
+                    return hit
         if self.font_dir:
             path = os.path.join(self.font_dir, f"glyph_{key}.png")
             if os.path.exists(path):
