@@ -213,13 +213,11 @@ class GlyphSheets:
 
     def glyph(self, ch: str, size: int = 8) -> Image.Image | None:
         """Return an ``size``x``size`` alpha glyph, or None if unavailable."""
-        # 原版字形页优先：那是游戏自己的汉字，比内置手绘字准确得多。
-        # 内置字只作为回退（原版包里没有该页时才用）。
+        builtin = builtin_glyphs().get(ch)
+        if builtin is not None:
+            return builtin if size == 16 else builtin.resize((size, size), Image.BOX)
         cp = ord(ch)
         page = self._page(cp >> 8)
-        if page is None and ch in builtin_glyphs():
-            builtin = builtin_glyphs()[ch]
-            return builtin if size == 16 else builtin.resize((size, size), Image.BOX)
         if page is not None:
             cell = page.width // 16
             idx = cp & 0xFF

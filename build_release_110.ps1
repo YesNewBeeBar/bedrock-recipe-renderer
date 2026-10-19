@@ -24,7 +24,9 @@ $a = @("-m","PyInstaller","--noconfirm","--clean","--windowed",
   "--add-data","wiki_pinned;wiki_pinned",
   "--add-data","assets;assets",
   "--add-data","tags_be.json;.",
-  "--add-data","vanilla_kinds.json;.")
+  "--add-data","vanilla_kinds.json;.",
+  "--add-data","mcrender\glyphs.json;mcrender",
+  "--add-data","mcrender\sprites.json;mcrender")
 foreach ($m in $excl) { $a += @("--exclude-module", $m) }
 $a += "mcrender_fluent.py"
 & $py @a 2>&1 | Select-Object -Last 3
