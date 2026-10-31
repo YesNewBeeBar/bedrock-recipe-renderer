@@ -10,7 +10,7 @@ setlocal
 set "HERE=%~dp0"
 
 set "PYW=pythonw.exe"
-if exist "C:\Python314\pythonw.exe" set "PYW=C:\Python314\pythonw.exe"
+if exist "pythonw" set "PYW=pythonw"
 
 if "%~1"=="" (
   start "" "%PYW%" "%HERE%mcrender_gui.py"

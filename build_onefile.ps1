@@ -1,8 +1,9 @@
-# Build a TRUE single-file exe (everything inside, nothing beside it).
+﻿# Build a TRUE single-file exe (everything inside, nothing beside it).
 # Note: onefile unpacks to a temp dir on first run; later runs reuse it.
-$ErrorActionPreference = "Stop"
-Set-Location "D:\合成表生成器"
-$py = "C:\Python314\python.exe"
+# 原生命令（python/PyInstaller）会往 stderr 写日志；用 Stop 会被当成错误中断构建。
+$ErrorActionPreference = "Continue"
+Set-Location $PSScriptRoot
+$py = "python"
 $name = "合成表生成器"
 
 $excl = @(

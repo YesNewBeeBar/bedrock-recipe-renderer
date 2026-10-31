@@ -21,3 +21,11 @@ __pycache__/
 *.bak
 *.tmp
 *~
+
+# 构建产物与缓存（不要入库）
+release/
+dist/
+build/
+.gradle/
+_sfx/app.zip
+*.jks

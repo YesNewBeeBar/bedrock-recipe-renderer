@@ -1,8 +1,9 @@
-# Official desktop build: PySide6 + Fluent widgets (mcrender_fluent.py).
+﻿# Official desktop build: PySide6 + Fluent widgets (mcrender_fluent.py).
 # The tkinter UI is archived under legacy/ and is no longer built.
-$ErrorActionPreference = "Stop"
-Set-Location "D:\合成表生成器"
-$py = "C:\Python314\python.exe"
+# 原生命令（python/PyInstaller）会往 stderr 写日志；用 Stop 会被当成错误中断构建。
+$ErrorActionPreference = "Continue"
+Set-Location $PSScriptRoot
+$py = "python"
 $a = @("-m","PyInstaller","--noconfirm","--clean","--windowed",
  "--name","bedrock-recipe-renderer",
  "--icon","assets\icon.ico",

@@ -14,13 +14,21 @@ import json
 import zipfile
 import tempfile
 
-sys.path.insert(0, r"D:\合成表生成器")
-os.chdir(r"D:\合成表生成器")
+# 用法：python tools/scan_block_disguised_items.py <包路径>
+#      （或在环境变量 BRR_PACK 里给包路径）
+# 本工具只读：不会修改包，也不参与出图。
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+os.chdir(ROOT)
 from mcrender.assets import Assets
 from PIL import Image
 
-MOB = r"D:\合成表生成器移动端\android-kivy"
-ARC = r"C:\Users\NewBee_Bar\Downloads\更多投掷球-v0.0.2.mcaddon.zip"
+#: 原版素材目录（默认用仓库自带的 vanilla_cache；可用 BRR_VANILLA 覆盖）
+MOB = os.environ.get("BRR_VANILLA") or os.path.join(ROOT, "vanilla_cache")
+ARC = os.environ.get("BRR_PACK") or (sys.argv[1] if len(sys.argv) > 1 else "")
+if not ARC or not os.path.isfile(ARC):
+    print("用法: python tools/scan_block_disguised_items.py <包路径.mcaddon>")
+    raise SystemExit(2)
 
 root = tempfile.mkdtemp()
 with zipfile.ZipFile(ARC) as z:

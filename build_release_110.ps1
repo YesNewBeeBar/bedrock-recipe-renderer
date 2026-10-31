@@ -1,7 +1,13 @@
-# 桌面端 1.1.0 一条龙：主程序(onedir) -> app.zip -> 自解压安装器 -> 交付到 D:\演示
-$ErrorActionPreference = "Stop"
-Set-Location "D:\合成表生成器"
-$py = "C:\Python314\python.exe"
+﻿param(
+    # 交付目录；默认放在脚本旁边的 release\
+    [string]$OutDir = (Join-Path $PSScriptRoot "release")
+)
+# 桌面端一条龙：主程序(onedir) -> app.zip -> 自解压安装器 -> 交付到 $OutDir（默认 .\release）
+# 原生命令（python/PyInstaller）会往 stderr 写日志；用 Stop 会被当成错误中断构建。
+$ErrorActionPreference = "Continue"
+Set-Location $PSScriptRoot
+New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+$py = "python"
 
 Write-Output "=== ① 主程序 onedir（含 panel/物品判定/动态纹理修复）==="
 $excl = @(
@@ -50,5 +56,5 @@ $b = @("-m","PyInstaller","--noconfirm","--clean","--onefile","--windowed",
 
 $ins = "dist\bedrock-recipe-renderer-installer.exe"
 if (-not (Test-Path $ins)) { Write-Output "[FAILED] 安装器未产出"; exit 1 }
-Copy-Item $ins "D:\演示\bedrock-recipe-renderer-installer.exe" -Force
-Write-Output ("=== 完成: D:\演示\bedrock-recipe-renderer-installer.exe  {0:N1} MB ===" -f ((Get-Item $ins).Length/1MB))
+Copy-Item $ins (Join-Path $OutDir "bedrock-recipe-renderer-installer.exe") -Force
+Write-Output (("=== 完成: " + (Join-Path $OutDir "bedrock-recipe-renderer-installer.exe") + "  {0:N1} MB ===" -f ((Get-Item $ins).Length/1MB)))
