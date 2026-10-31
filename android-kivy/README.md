@@ -38,11 +38,11 @@ android-kivy/
 本机已装好 WSL2(Ubuntu) + JDK17 + Android SDK/NDK，工程常驻 `/root/brr`（纯 ASCII 路径）。
 
 ```powershell
-# Windows 侧一条命令：同步源码 → buildozer 出包 → 拷贝到 D:\演示
-wsl -d Ubuntu -u root -- bash /root/build_mobile.sh
+# Windows 侧一条命令：同步源码 → buildozer 出包 → 拷贝到 $OUT_DIR
+wsl -d FeiyuUbuntu -u root -- bash /root/build_mobile.sh
 
 # 交付（重命名 + 解包核对）
-wsl -d Ubuntu -u root -- bash /root/deliver.sh
+wsl -d FeiyuUbuntu -u root -- bash /root/deliver.sh
 ```
 
 `build_mobile.sh` 会同步这些内容到 `/root/brr`：`main.py`、`buildozer.spec`、

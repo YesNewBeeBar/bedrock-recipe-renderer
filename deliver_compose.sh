@@ -3,7 +3,7 @@
 set -u
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 BT=$(ls -d /root/android-sdk/build-tools/* 2>/dev/null | head -1)
-SRC="/mnt/d/合成表生成器移动端/android-compose/app/build/outputs/apk/release/app-release.apk"
+SRC="$(dirname "$0")/android-compose/app/build/outputs/apk/release/app-release.apk"
 DST=""
 
 # 版本号从 APK 里读，文件名带上它（桌面/手机共用一个 release，文件名要能区分版本）
@@ -14,7 +14,7 @@ else
     VER=1.0.1
 fi
 [ -z "$VER" ] && VER=1.0.1
-DST="/mnt/d/演示/合成表生成器-v${VER}-Android.apk"
+DST="${OUT_DIR:-$(dirname "$0")/release}/合成表生成器-v${VER}-Android.apk"
 echo "== 交付: $DST ($(du -h "$DST" | cut -f1)) =="
 ls -la "$DST"
 
@@ -28,12 +28,12 @@ fi
 
 echo
 echo "== 旧的 Kivy 版标记为遗留 =="
-OLD="/mnt/d/演示/合成表生成器-v1.2.9-Android.apk"
+OLD="${OUT_DIR:-$(dirname "$0")/release}/合成表生成器-v1.2.9-Android.apk"
 if [ -f "$OLD" ]; then
-    mv -f "$OLD" "/mnt/d/演示/合成表生成器-v1.2.9-Android-legacy-kivy.apk"
+    mv -f "$OLD" "${OUT_DIR:-$(dirname "$0")/release}/合成表生成器-v1.2.9-Android-legacy-kivy.apk"
     echo "  已改名: 合成表生成器-v1.2.9-Android-legacy-kivy.apk"
 fi
 
 echo
-echo "== D:\\演示\\ 现状 =="
-ls -la /mnt/d/演示/ | grep -iE "apk|exe" | awk '{print "  " $5 "  " $9}'
+echo "== 交付目录现状 =="
+ls -la "${OUT_DIR:-$(dirname "$0")/release}/" | grep -iE "apk|exe" | awk '{print "  " $5 "  " $9}'

@@ -15,10 +15,11 @@ if [ ! -x "$GRADLE_DIR/bin/gradle" ]; then
 fi
 echo "gradle: $($GRADLE_DIR/bin/gradle --version 2>/dev/null | grep -E '^Gradle')"
 
-PROJ=/mnt/d/合成表生成器移动端/android-compose
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+PROJ="$ROOT/android-compose"
 # 图标：复用现有 icon.png
 mkdir -p "$PROJ/app/src/main/res/mipmap-xxxhdpi"
-cp -f "/mnt/d/合成表生成器移动端/android-kivy/icon.png" \
+cp -f "$ROOT/android-kivy/icon.png" \
       "$PROJ/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" 2>/dev/null || true
 ls -la "$PROJ/app/src/main/res/mipmap-xxxhdpi/" 2>/dev/null | tail -2
 

@@ -35,3 +35,11 @@ android/.venv*
 
 # buildozer.spec 是构建配置，必须提交（上面的 *.spec 是 PyInstaller 产物）
 !android-kivy/buildozer.spec
+
+# 构建产物与缓存（不要入库）
+release/
+dist/
+build/
+.gradle/
+_sfx/app.zip
+*.jks

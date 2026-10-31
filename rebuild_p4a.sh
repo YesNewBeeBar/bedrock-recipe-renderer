@@ -5,7 +5,7 @@ P4A=/root/brr/.buildozer/android/platform/python-for-android
 
 echo "=== 1) 用 Windows 侧副本重建 p4a ==="
 rm -rf "$P4A"
-cp -r /mnt/d/android-toolchain/p4a "$P4A"
+cp -r "${TOOLCHAIN_ROOT:-/opt/android-toolchain}/p4a" "$P4A"
 cd "$P4A"
 git log --oneline -1
 
@@ -41,10 +41,10 @@ export ACLOCAL_PATH=/usr/share/aclocal:/usr/local/share/aclocal
 buildozer -v android debug > build.log 2>&1
 echo "buildozer 退出码: $?"
 grep -nE "BUILD SUCCESSFUL|APK |Error code|not a supported wheel" build.log | tail -6
-mkdir -p /mnt/d/演示
+mkdir -p "${OUT_DIR:-$(dirname "$0")/release}"
 if ls bin/*.apk >/dev/null 2>&1; then
-    cp -v bin/*.apk /mnt/d/演示/
-    echo "APK 已复制到 D:\\演示\\"
+    cp -v bin/*.apk "${OUT_DIR:-$(dirname "$0")/release}/"
+    echo "APK 已复制到 ${OUT_DIR:-$(dirname "$0")/release}"
 else
     echo "本轮未产出 APK，最后 15 行日志："
     tail -15 build.log | sed 's/\x1b\[[0-9;]*m//g'

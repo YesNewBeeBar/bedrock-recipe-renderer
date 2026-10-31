@@ -8,7 +8,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # 以 root 直接跑时（跳过用户创建的情况）不需要 sudo
 if [ "$(id -u)" = "0" ]; then SUDO=""; else SUDO="sudo"; fi
 
-WIN_SDK="/mnt/d/android-toolchain/sdk"
+WIN_SDK="${WIN_SDK:-/mnt/c/android-toolchain/sdk}"
 WORK="$HOME/brr"                     # 纯 ASCII 工程目录，避免 NDK 遇到中文路径
 
 echo "==> 1/4 换 apt 源（清华），失败就跳过"

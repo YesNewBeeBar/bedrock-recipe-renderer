@@ -139,7 +139,7 @@ pixel mismatches: 1676 = 0.825%
 无窗口批量模式（给 bat/脚本调用）：
 
 ```powershell
-& C:\Python314\python.exe mcrender_gui.py --headless <json或目录> [...]
+& python mcrender_gui.py --headless <json或目录> [...]
 ```
 
 `config.json` 字段：`bp`（行为包，含 recipes/）、`rp`（资源包）、`vanilla`（原版 samples 包）、

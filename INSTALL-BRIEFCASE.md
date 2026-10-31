@@ -9,8 +9,8 @@
 
 ```powershell
 # 推荐：单独建一个虚拟环境，不污染系统 Python
-cd D:\合成表生成器移动端
-C:\Python314\python.exe -m venv .venv-briefcase
+cd <项目目录>
+python -m venv .venv-briefcase
 .\.venv-briefcase\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 pip install briefcase
@@ -62,7 +62,7 @@ briefcase doctor
 ## 5. 建工程并跑起来
 
 ```powershell
-cd D:\合成表生成器移动端
+cd <项目目录>
 python sync_core.py                 # 同步核心 + 生成 Android 图标
 cd android
 briefcase create android            # 生成 Gradle 工程（首次 10~20 分钟）
@@ -103,10 +103,10 @@ Briefcase 用 **Chaquopy 的二级仓库**（`https://chaquo.com/pypi-13.1/`，�
 
 | 步骤 | 状态 | 位置 / 版本 |
 | --- | --- | --- |
-| briefcase | ✅ 0.4.5 | `D:\android-toolchain\venv` |
-| Temurin JDK 17 | ✅ 17.0.20.1 | `D:\android-toolchain\jdk17` |
-| Android SDK 许可 | ✅ 已全部接受 | `D:\android-toolchain\sdk\licenses` |
-| platform-tools / android-34 / build-tools 34.0.0 / NDK 26.1 | ✅ | `D:\android-toolchain\sdk` |
+| briefcase | ✅ 0.4.5 | `<工具链目录>\venv` |
+| Temurin JDK 17 | ✅ 17.0.20.1 | `<工具链目录>\jdk17` |
+| Android SDK 许可 | ✅ 已全部接受 | `<工具链目录>\sdk\licenses` |
+| platform-tools / android-34 / build-tools 34.0.0 / NDK 26.1 | ✅ | `<工具链目录>\sdk` |
 | `briefcase create android` | ✅ 成功，Gradle 工程已生成 | `android\build\bedrock_recipe_renderer\android\gradle` |
 | `briefcase build android` | ❌ 卡在下载 Gradle 发行包 | `services.gradle.org` 连接超时 |
 
@@ -129,12 +129,12 @@ Briefcase 用 **Chaquopy 的二级仓库**（`https://chaquo.com/pypi-13.1/`，�
 ### 之后的命令（在新终端里）
 
 ```powershell
-$env:JAVA_HOME='D:\android-toolchain\jdk17'
-$env:ANDROID_HOME='D:\android-toolchain\sdk'
+$env:JAVA_HOME='<工具链目录>\jdk17'
+$env:ANDROID_HOME='<工具链目录>\sdk'
 $env:JAVA_OPTS='-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT'
 $env:PATH="$env:JAVA_HOME\bin;$env:PATH"
-cd D:\合成表生成器移动端\android
-D:\android-toolchain\venv\Scripts\briefcase.exe build android
+cd <项目目录>\android
+<工具链目录>\venv\Scripts\briefcase.exe build android
 ```
 
 **Pillow 的判定点**：`build` 阶段 Gradle 会调 Chaquopy 的 pip 去装 `pillow`。

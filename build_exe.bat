@@ -11,7 +11,7 @@ if not exist "wiki_cache" mkdir "wiki_cache"
 if not exist "assets\ui" mkdir "assets\ui"
 
 set PY=%LOCALAPPDATA%\Programs\Python\Python314\python.exe
-if not exist "%PY%" set PY=C:\Python314\python.exe
+if not exist "%PY%" set PY=python
 if not exist "%PY%" set PY=python
 
 echo [1/2] building GUI exe ...

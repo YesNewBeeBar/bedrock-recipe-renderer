@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# 移动端构建：把工程同步到 WSL 的 /root/brr → buildozer 出 APK → 拷到 D:\演示
-# 用法（在 Windows 侧）：wsl -d Ubuntu -u root -- bash /root/build_mobile.sh
+# 移动端构建：把工程同步到 WSL 的 /root/brr → buildozer 出 APK → 拷到 $OUT
+# 用法（在 Windows 侧）：wsl -d FeiyuUbuntu -u root -- bash /root/build_mobile.sh
 set -u
 
-SRC=/mnt/d/合成表生成器移动端/android-kivy
-OUT=/mnt/d/演示
+SRC="$(dirname "$0")/android-kivy"
+OUT="${OUT_DIR:-$(dirname "$0")/release}"
 cd /root/brr || exit 1
 
 echo "=== 1) 同步源码 ==="

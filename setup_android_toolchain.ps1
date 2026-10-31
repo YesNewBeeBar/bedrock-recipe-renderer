@@ -2,10 +2,10 @@
 # 全程不需要管理员权限：JDK 与 Android SDK 都用「绿色压缩包 + 解压」装到 D 盘。
 # 用法：pwsh -File setup_android_toolchain.ps1
 #       pwsh -File setup_android_toolchain.ps1 -SkipSdk      # 只装 briefcase + JDK
-# 结果：D:\android-toolchain\{venv, jdk17, sdk}
+# 结果：$Root\{venv, jdk17, sdk}（默认在 %LOCALAPPDATA%\android-toolchain）
 
 param(
-    [string]$Root = "D:\android-toolchain",
+    [string]$Root = (Join-Path $env:LOCALAPPDATA "android-toolchain"),
     [switch]$SkipSdk
 )
 
@@ -23,7 +23,7 @@ Info "工具链目录：$Root"
 $venv = Join-Path $Root "venv"
 if (-not (Test-Path (Join-Path $venv "Scripts\python.exe"))) {
     Info "创建虚拟环境 $venv"
-    & C:\Python314\python.exe -m venv $venv
+    & python -m venv $venv
 }
 $py = Join-Path $venv "Scripts\python.exe"
 
@@ -113,4 +113,4 @@ Write-Host ""
 Ok "完成。请在新终端里设置一次环境变量（或每次跑本脚本都会自动设置）："
 Write-Host "    setx JAVA_HOME `"$jdkHome`"" -ForegroundColor DarkGray
 Write-Host "    setx ANDROID_HOME `"$sdk`"" -ForegroundColor DarkGray
-Write-Host "然后：cd D:\合成表生成器移动端\android ; briefcase create android" -ForegroundColor DarkGray
+Write-Host "然后：cd .\android ; briefcase create android" -ForegroundColor DarkGray

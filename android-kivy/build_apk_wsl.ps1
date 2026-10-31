@@ -2,7 +2,7 @@
 # 前置：已安装 WSL2 + Ubuntu（管理员 PowerShell 跑一次：wsl --install -d Ubuntu）
 #
 # 用法：pwsh -File build_apk_wsl.ps1
-#       pwsh -File build_apk_wsl.ps1 -Distro Ubuntu-22.04 -Clean
+#       pwsh -File build_apk_wsl.ps1 -Distro FeiyuUbuntu -Clean
 
 param(
     [string]$Distro = "",
